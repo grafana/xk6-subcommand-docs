@@ -150,6 +150,51 @@ func setupTestCache(t *testing.T) (string, *Index) {
 	return dir, idx
 }
 
+// checkAlignment verifies that all indented listing lines (starting with "  ")
+// in the given output have their descriptions starting at the same column.
+// It returns the column index and true if aligned, or 0 and false if not.
+func checkAlignment(t *testing.T, label, output string) {
+	t.Helper()
+
+	lines := strings.Split(output, "\n")
+	col := -1
+	for _, line := range lines {
+		if !strings.HasPrefix(line, "  ") {
+			continue
+		}
+		trimmed := strings.TrimPrefix(line, "  ")
+		// Skip lines like "(no subtopics)" that aren't name+description pairs.
+		if strings.HasPrefix(trimmed, "(") {
+			continue
+		}
+		// Find where the name ends and description begins.
+		// The name is left-padded, so look for the first double-space or the
+		// transition from non-space to space-then-non-space after the name.
+		// With our format "  %-Ns desc", the description starts after the
+		// padded name field. We find the column by looking at each character.
+		descStart := -1
+		inName := true
+		for i, ch := range trimmed {
+			if inName && ch == ' ' {
+				inName = false
+			}
+			if !inName && ch != ' ' {
+				descStart = i
+				break
+			}
+		}
+		if descStart < 0 {
+			continue // blank or name-only line
+		}
+		if col < 0 {
+			col = descStart
+		} else if descStart != col {
+			t.Errorf("%s: misaligned descriptions — expected column %d but got %d in line %q",
+				label, col, descStart, line)
+		}
+	}
+}
+
 func TestChildName(t *testing.T) {
 	t.Parallel()
 
@@ -239,6 +284,13 @@ func TestPrintTOC(t *testing.T) {
 	if !strings.Contains(out, "k6-http") {
 		t.Error("printTOC: missing 'k6-http' child name under JavaScript API")
 	}
+
+	// Check alignment within each category section.
+	// Split by category headers and check each section.
+	sections := strings.Split(out, "## ")
+	for _, section := range sections[1:] { // skip the header before first ##
+		checkAlignment(t, "printTOC", "  "+strings.SplitN(section, "\n", 2)[1])
+	}
 }
 
 func TestPrintSection(t *testing.T) {
@@ -316,6 +368,7 @@ func TestPrintList(t *testing.T) {
 		if !strings.Contains(out, "post") {
 			t.Error("printList: missing child 'post'")
 		}
+		checkAlignment(t, "printList", out)
 	})
 
 	t.Run("section without children", func(t *testing.T) {
@@ -374,6 +427,7 @@ func TestPrintSearch(t *testing.T) {
 		if !strings.Contains(out, "get") {
 			t.Error("printSearch: missing 'get' result")
 		}
+		checkAlignment(t, "printSearch", out)
 	})
 
 	t.Run("match in body content", func(t *testing.T) {
@@ -445,6 +499,62 @@ func TestPrintTopLevelList(t *testing.T) {
 	}
 	if !strings.Contains(out, "Learn how to use k6.") {
 		t.Error("printTopLevelList: missing using-k6 description")
+	}
+
+	checkAlignment(t, "printTopLevelList", out)
+}
+
+func TestDynamicAlignment(t *testing.T) {
+	t.Parallel()
+
+	// Build an index with children of varying name lengths under one parent.
+	idx := &Index{
+		Sections: []Section{
+			{Slug: "parent", Title: "Parent", Description: "Parent topic.", Weight: 1, Category: "parent",
+				Children: []string{"parent/ab", "parent/a-very-long-child-name"}, IsIndex: true},
+			{Slug: "parent/ab", Title: "AB", Description: "Short name child.", Weight: 1, Category: "parent"},
+			{Slug: "parent/a-very-long-child-name", Title: "Long", Description: "Long name child.", Weight: 2, Category: "parent"},
+		},
+	}
+	idx.bySlug = make(map[string]*Section, len(idx.Sections))
+	for i := range idx.Sections {
+		idx.bySlug[idx.Sections[i].Slug] = &idx.Sections[i]
+	}
+
+	var buf bytes.Buffer
+	printList(&buf, idx, "parent")
+	out := buf.String()
+
+	// Both description columns must start at the same position.
+	lines := strings.Split(out, "\n")
+	var descStarts []int
+	for _, line := range lines {
+		if !strings.HasPrefix(line, "  ") {
+			continue
+		}
+		trimmed := strings.TrimPrefix(line, "  ")
+		if strings.HasPrefix(trimmed, "(") {
+			continue
+		}
+		inName := true
+		for i, ch := range trimmed {
+			if inName && ch == ' ' {
+				inName = false
+			}
+			if !inName && ch != ' ' {
+				descStarts = append(descStarts, i)
+				break
+			}
+		}
+	}
+	if len(descStarts) < 2 {
+		t.Fatalf("expected at least 2 listing lines, got %d", len(descStarts))
+	}
+	for i := 1; i < len(descStarts); i++ {
+		if descStarts[i] != descStarts[0] {
+			t.Errorf("descriptions not aligned: line 0 starts at %d, line %d starts at %d\noutput:\n%s",
+				descStarts[0], i, descStarts[i], out)
+		}
 	}
 }
 
