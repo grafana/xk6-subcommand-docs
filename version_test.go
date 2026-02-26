@@ -21,7 +21,7 @@ func TestMapToWildcard(t *testing.T) {
 		{name: "build metadata suffix", version: "v0.55.2+build.123", want: "v0.55.x"},
 		{name: "pre-release and build", version: "v1.0.0-alpha+001", want: "v1.0.x"},
 		{name: "pseudo-version", version: "v0.0.0-20240101000000-abcdef123456", want: "v0.0.x"},
-		{name: "no v prefix", version: "1.5.0", want: "1.5.x"},
+		{name: "no v prefix", version: "1.5.0", want: "v1.5.x"},
 		{name: "only major.minor", version: "v1.5", want: "v1.5"},
 		{name: "empty string", version: "", want: ""},
 	}

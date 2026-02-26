@@ -26,6 +26,8 @@ func detectK6Version(readBuildInfo func() (*debug.BuildInfo, bool)) (string, err
 // MapToWildcard converts a semver version to a wildcard patch version.
 // "v1.5.0" becomes "v1.5.x", "v0.55.2-rc.1" becomes "v0.55.x".
 // Pre-release suffixes and build metadata are stripped.
+// The "v" prefix is always added if missing, since the k6-docs repository
+// uses v-prefixed directory names (e.g. "v1.6.x").
 // If the version doesn't contain at least two dots (major.minor.patch),
 // it is returned as-is.
 func MapToWildcard(version string) string {
@@ -52,7 +54,15 @@ func MapToWildcard(version string) string {
 		return version
 	}
 
-	return prefix + ".x"
+	result := prefix + ".x"
+
+	// Ensure the "v" prefix is present. The k6-docs repo always uses
+	// v-prefixed directory names like "v1.6.x".
+	if !strings.HasPrefix(result, "v") {
+		result = "v" + result
+	}
+
+	return result
 }
 
 // DetectK6Version is a convenience wrapper that uses the real debug.ReadBuildInfo.
