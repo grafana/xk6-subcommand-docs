@@ -1,3 +1,16 @@
 {
-  "planDirectory": ".claude/plans"
+  "planDirectory": ".claude/plans",
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "echo 'REMEMBER: Follow TDD (red/green/refactor). Tests must compile and fail on assertions BEFORE editing implementation.'"
+          }
+        ]
+      }
+    ]
+  }
 }
