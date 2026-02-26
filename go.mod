@@ -6,6 +6,7 @@ require (
 	github.com/klauspost/compress v1.18.4
 	github.com/spf13/cobra v1.10.2
 	go.k6.io/k6 v1.6.0
+	gopkg.in/yaml.v3 v3.0.1
 )
 
 require (
