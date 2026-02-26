@@ -756,6 +756,38 @@ func TestRunWithRealDocs(t *testing.T) {
 	}
 }
 
+func TestRunWithExactVersionNoVPrefix(t *testing.T) {
+	t.Parallel()
+
+	// The docs directory uses the wildcard form v0.99.x. When the caller
+	// passes an exact version without the "v" prefix (e.g. "0.99.3"),
+	// MapToWildcard must still produce "v0.99.x" to match the directory.
+	docsPath := setupMockDocs(t, "v0.99.x")
+	outputDir := filepath.Join(t.TempDir(), "output")
+
+	if err := run("0.99.3", docsPath, outputDir); err != nil {
+		t.Fatalf("run with bare version (no v prefix): %v", err)
+	}
+
+	data, err := os.ReadFile(filepath.Join(outputDir, "sections.json"))
+	if err != nil {
+		t.Fatalf("read sections.json: %v", err)
+	}
+
+	var idx docs.Index
+	if err := json.Unmarshal(data, &idx); err != nil {
+		t.Fatalf("parse sections.json: %v", err)
+	}
+
+	if idx.Version != "0.99.3" {
+		t.Errorf("Version = %q, want %q (original version should be preserved)", idx.Version, "0.99.3")
+	}
+
+	if len(idx.Sections) == 0 {
+		t.Error("expected sections to be populated")
+	}
+}
+
 func TestMissingVersion(t *testing.T) {
 	t.Parallel()
 
