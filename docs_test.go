@@ -163,8 +163,8 @@ func checkAlignment(t *testing.T, label, output string) {
 			continue
 		}
 		trimmed := strings.TrimPrefix(line, "  ")
-		// Skip lines like "(no subtopics)" that aren't name+description pairs.
-		if strings.HasPrefix(trimmed, "(") {
+		// Skip lines like "(no subtopics)" or usage hints ("→ ...") that aren't name+description pairs.
+		if strings.HasPrefix(trimmed, "(") || strings.HasPrefix(trimmed, "→") {
 			continue
 		}
 		// Find where the name ends and description begins.
@@ -357,6 +357,17 @@ func TestPrintTOC(t *testing.T) {
 	// Check children listed under JavaScript API use child names (relative to parent).
 	if !strings.Contains(out, "k6-http") {
 		t.Error("printTOC: missing 'k6-http' child name under JavaScript API")
+	}
+
+	// Check usage hint lines after each category's children.
+	if !strings.Contains(out, "→ k6 x docs javascript-api <topic>") {
+		t.Error("printTOC: missing usage hint for javascript-api")
+	}
+	if !strings.Contains(out, "→ k6 x docs using-k6 <topic>") {
+		t.Error("printTOC: missing usage hint for using-k6")
+	}
+	if !strings.Contains(out, "→ k6 x docs examples <topic>") {
+		t.Error("printTOC: missing usage hint for examples")
 	}
 
 	// Check alignment within each category section.

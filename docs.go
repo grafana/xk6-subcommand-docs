@@ -92,6 +92,7 @@ func printTOC(w io.Writer, idx *Index, version string) {
 			})
 		}
 		printAlignedList(w, items, "  ")
+		fmt.Fprintf(w, "\n  → k6 x docs %s <topic>\n", cat.Slug)
 	}
 }
 
