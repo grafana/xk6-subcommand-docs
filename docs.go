@@ -139,7 +139,7 @@ func printSearch(w io.Writer, idx *Index, term, cacheDir string) {
 
 // printBestPractices reads and prints the best_practices.md file from the cache.
 func printBestPractices(w io.Writer, cacheDir string) error {
-	path := filepath.Join(cacheDir, "markdown", "best_practices.md")
+	path := filepath.Join(cacheDir, "best_practices.md")
 	data, err := os.ReadFile(path)
 	if err != nil {
 		return fmt.Errorf("read best practices: %w", err)
