@@ -49,6 +49,20 @@ Doc bundles are published as GitHub releases through two triggers:
 
 The pipeline clones [k6-docs](https://github.com/grafana/k6-docs), transforms Hugo markdown into a compact format, compresses with zstd, and publishes as a GitHub release tagged `docs-v{major}.{minor}.x`.
 
+## Claude Code Skill
+
+This extension includes a [Claude Code](https://docs.anthropic.com/en/docs/claude-code) skill for AI-assisted k6 documentation lookup.
+
+### Installation
+
+```bash
+npx @anthropic-ai/claude-code skill install --url https://github.com/grafana/xk6-subcommand-docs
+```
+
+### Usage
+
+Once installed, Claude Code can look up k6 documentation during conversations using `k6 x docs`.
+
 ## Development
 
 ```
