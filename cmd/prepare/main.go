@@ -252,7 +252,12 @@ func categoryFromSlug(slug string) string {
 // walkAndProcess walks the version root, processes included .md files,
 // and returns the collected sections.
 func walkAndProcess(versionRoot, markdownDir, k6Version string, sharedContent map[string]string) ([]docs.Section, error) {
-	var sections []docs.Section
+	// Use a map to deduplicate sections by slug. When a slug collision
+	// occurs (e.g. cookiejar.md and cookiejar/_index.md both produce
+	// "javascript-api/k6-http/cookiejar"), prefer the _index.md entry
+	// because it represents a section with children.
+	sectionMap := make(map[string]docs.Section)
+	var slugOrder []string
 
 	err := filepath.WalkDir(versionRoot, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
@@ -310,7 +315,7 @@ func walkAndProcess(versionRoot, markdownDir, k6Version string, sharedContent ma
 			return fmt.Errorf("write %s: %w", outPath, err)
 		}
 
-		sections = append(sections, docs.Section{
+		sec := docs.Section{
 			Slug:        slug,
 			RelPath:     rel,
 			Title:       fm.Title,
@@ -318,10 +323,27 @@ func walkAndProcess(versionRoot, markdownDir, k6Version string, sharedContent ma
 			Weight:      fm.Weight,
 			Category:    category,
 			IsIndex:     isIndex,
-		})
+		}
+
+		// Handle slug collisions: prefer _index.md over plain .md files.
+		if existing, ok := sectionMap[slug]; ok {
+			if isIndex && !existing.IsIndex {
+				sectionMap[slug] = sec
+			}
+			// Otherwise keep the existing entry.
+		} else {
+			slugOrder = append(slugOrder, slug)
+			sectionMap[slug] = sec
+		}
 
 		return nil
 	})
+
+	// Rebuild the slice in walk order.
+	sections := make([]docs.Section, 0, len(slugOrder))
+	for _, slug := range slugOrder {
+		sections = append(sections, sectionMap[slug])
+	}
 
 	return sections, err
 }
