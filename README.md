@@ -18,13 +18,49 @@ k6 x docs http                             # JS API: k6/http module
 k6 x docs http get                         # JS API: HTTP get function
 k6 x docs browser page click              # JS API: browser page click
 k6 x docs using-k6 scenarios              # Using k6: scenarios
+k6 x docs jslib                            # JS API: jslib (no k6- prefix needed)
+k6 x docs crypto                           # JS API: crypto
 k6 x docs javascript-api/k6-http/get      # Full slug (always works)
 k6 x docs --list                           # List top-level categories
 k6 x docs http --list                      # List subtopics under http
 k6 x docs search threshold                # Search docs
+k6 x docs search "close context"          # Fuzzy: matches closecontext
+k6 x docs search "http-debugging"         # Fuzzy: matches http debugging
 k6 x docs best-practices                  # Best practices guide
 k6 x docs --all                            # Dump all docs
 ```
+
+### Non-k6-prefixed modules
+
+Most JS API modules use the `k6-` prefix (`k6-http`, `k6-browser`, etc.), but some don't. Modules like `jslib`, `crypto`, `init-context`, and `error-codes` can be accessed directly by name without any prefix:
+
+```
+k6 x docs jslib
+k6 x docs crypto
+k6 x docs init-context
+```
+
+### Fuzzy search
+
+Search ignores spaces and dashes, so you don't need to remember exact formatting:
+
+- `k6 x docs search "close context"` matches `closecontext`
+- `k6 x docs search "http-debugging"` matches `http debugging`
+- `k6 x docs search "closecontext"` matches `close-context`
+
+Search results are grouped by topic/module with hierarchical output rather than a flat list.
+
+### Markdown renderer
+
+You can configure a markdown renderer (e.g. [glow](https://github.com/charmbracelet/glow)) so docs output is automatically rendered in the terminal.
+
+Create `~/.config/k6/docs.yaml`:
+
+```yaml
+renderer: glow -p 200
+```
+
+When configured and stdout is a TTY (interactive use), output is piped through the renderer. When piped (`k6 x docs http | grep something`), the renderer is bypassed and raw markdown is emitted. If the renderer command fails, raw output is printed as a fallback.
 
 ## How doc bundles work
 
