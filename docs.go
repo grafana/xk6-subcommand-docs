@@ -75,7 +75,7 @@ func printTOC(w io.Writer, idx *Index, version string) {
 	topLevel := idx.TopLevel()
 
 	for _, cat := range topLevel {
-		fmt.Fprintf(w, "\n## %s\n\n", cat.Title)
+		fmt.Fprintf(w, "\n## %s\n", cat.Title)
 
 		children := idx.Children(cat.Slug)
 		if len(children) == 0 {
@@ -280,7 +280,7 @@ func printBestPractices(w io.Writer, cacheDir string) error {
 
 // printAll prints all sections sequentially.
 func printAll(w io.Writer, idx *Index, cacheDir, version string) {
-	fmt.Fprintf(w, "k6 Documentation (%s)\n\n", version)
+	fmt.Fprintf(w, "k6 Documentation (%s)\n", version)
 
 	for i := range idx.Sections {
 		sec := &idx.Sections[i]
