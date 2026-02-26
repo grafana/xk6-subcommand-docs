@@ -79,6 +79,8 @@ weight: 10
 
 Make a GET request.
 
+See the [API docs](https://grafana.com/docs/k6/<K6_VERSION>/javascript-api/k6-http/get).
+
 {{< code >}}
 
 `+"```javascript"+`
@@ -375,60 +377,57 @@ func TestTransformedMarkdownContent(t *testing.T) {
 		}
 	})
 
-	t.Run("code tags stripped", func(t *testing.T) {
+	t.Run("code tags preserved in bundle", func(t *testing.T) {
 		data, err := os.ReadFile(filepath.Join(outputDir, "markdown", "javascript-api", "k6-http", "get.md"))
 		if err != nil {
 			t.Fatalf("read get.md: %v", err)
 		}
 		content := string(data)
 
-		if strings.Contains(content, "{{< code >}}") {
-			t.Error("code shortcodes should be stripped")
+		if !strings.Contains(content, "{{< code >}}") {
+			t.Error("code shortcodes should be preserved in bundle (stripped at runtime)")
 		}
 		if !strings.Contains(content, "import http from 'k6/http'") {
 			t.Error("code block content should be preserved")
 		}
 	})
 
-	t.Run("admonition converted", func(t *testing.T) {
+	t.Run("admonition preserved in bundle", func(t *testing.T) {
 		data, err := os.ReadFile(filepath.Join(outputDir, "markdown", "using-k6", "checks.md"))
 		if err != nil {
 			t.Fatalf("read checks.md: %v", err)
 		}
 		content := string(data)
 
-		if strings.Contains(content, "{{< admonition") {
-			t.Error("admonition shortcode should be converted")
-		}
-		if !strings.Contains(content, "> **Note:**") {
-			t.Error("admonition should be a blockquote")
+		if !strings.Contains(content, "{{< admonition") {
+			t.Error("admonition shortcode should be preserved in bundle (converted at runtime)")
 		}
 	})
 
-	t.Run("frontmatter stripped", func(t *testing.T) {
+	t.Run("frontmatter preserved in bundle", func(t *testing.T) {
 		data, err := os.ReadFile(filepath.Join(outputDir, "markdown", "using-k6", "thresholds.md"))
 		if err != nil {
 			t.Fatalf("read thresholds.md: %v", err)
 		}
 		content := string(data)
 
-		if strings.Contains(content, "title: 'Thresholds'") {
-			t.Error("frontmatter should be stripped from transformed output")
+		if !strings.Contains(content, "title: 'Thresholds'") {
+			t.Error("frontmatter should be preserved in bundle (stripped at runtime)")
 		}
 		if !strings.Contains(content, "# Thresholds") {
 			t.Error("markdown heading should be preserved")
 		}
 	})
 
-	t.Run("version placeholder replaced", func(t *testing.T) {
-		data, err := os.ReadFile(filepath.Join(outputDir, "markdown", "javascript-api", "k6-http", "_index.md"))
+	t.Run("version placeholder preserved in bundle", func(t *testing.T) {
+		data, err := os.ReadFile(filepath.Join(outputDir, "markdown", "javascript-api", "k6-http", "get.md"))
 		if err != nil {
-			t.Fatalf("read k6-http _index.md: %v", err)
+			t.Fatalf("read get.md: %v", err)
 		}
 		content := string(data)
 
-		if strings.Contains(content, "<K6_VERSION>") {
-			t.Error("version placeholder should be replaced")
+		if !strings.Contains(content, "<K6_VERSION>") {
+			t.Error("version placeholder should be preserved in bundle (replaced at runtime)")
 		}
 	})
 }
@@ -843,17 +842,20 @@ func TestRunWithRealDocs(t *testing.T) {
 		}
 	}
 
-	// Check that a transformed markdown file exists and has no frontmatter.
+	// Check that a prepared markdown file exists. Bundle content is raw-ish:
+	// shared shortcodes resolved but frontmatter/other shortcodes preserved
+	// (they are stripped at runtime).
 	checksPath := filepath.Join(outputDir, "markdown", "using-k6", "checks.md")
 	checksData, err := os.ReadFile(checksPath)
 	if err != nil {
-		t.Fatalf("read transformed checks.md: %v", err)
+		t.Fatalf("read prepared checks.md: %v", err)
 	}
-	if strings.HasPrefix(string(checksData), "---") {
-		t.Error("transformed markdown should not start with frontmatter")
+	if !strings.HasPrefix(string(checksData), "---") {
+		t.Error("prepared markdown should still have frontmatter (stripped at runtime)")
 	}
-	if strings.Contains(string(checksData), "{{<") {
-		t.Error("transformed markdown should not contain Hugo shortcodes")
+	// Shared shortcodes should be resolved, but other shortcodes are preserved.
+	if strings.Contains(string(checksData), "docs/shared") {
+		t.Error("shared shortcodes should be resolved at prepare time")
 	}
 
 	// best_practices.md should exist.

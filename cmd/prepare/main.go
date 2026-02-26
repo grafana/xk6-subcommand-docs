@@ -301,7 +301,7 @@ func walkAndProcess(versionRoot, markdownDir, k6Version string, sharedContent ma
 			log.Printf("warning: %s: %v", rel, err)
 		}
 
-		transformed := docs.Transform(string(content), k6Version, sharedContent)
+		transformed := docs.PrepareTransform(string(content), sharedContent)
 
 		slug := slugFromRelPath(rel)
 		category := categoryFromSlug(slug)

@@ -112,17 +112,18 @@ func setupTestCache(t *testing.T) (string, *Index) {
 		t.Fatalf("write sections.json: %v", err)
 	}
 
-	// Create markdown files. Content is pre-transformed (no frontmatter),
-	// matching how the prepare command generates cached content.
+	// Create markdown files. Content is raw-ish (shared shortcodes resolved,
+	// but frontmatter and other shortcodes still present), matching how the
+	// prepare command now generates cached content.
 	mdFiles := map[string]string{
-		"javascript-api/_index.md":          "# JavaScript API\n\nThe JavaScript API reference.\n",
-		"javascript-api/k6-http/_index.md":  "# k6/http\n\nThe HTTP module.\n",
-		"javascript-api/k6-http/get.md":     "## http.get(url)\n\nMake a GET request.\n",
-		"javascript-api/k6-http/post.md":    "## http.post(url, body)\n\nMake a POST request.\n",
-		"using-k6/_index.md":                "# Using k6\n\nGuide to using k6.\n",
-		"using-k6/scenarios.md":             "# Scenarios\n\nScenarios let you configure execution.\n",
-		"examples/_index.md":                "# Examples\n\nExample scripts.\n",
-		"examples/websockets.md":            "# WebSockets\n\nWebSocket example content.\n",
+		"javascript-api/_index.md":          "---\ntitle: 'JavaScript API'\n---\n# JavaScript API\n\nThe JavaScript API reference.\n",
+		"javascript-api/k6-http/_index.md":  "---\ntitle: 'k6/http'\n---\n# k6/http\n\nThe HTTP module.\n",
+		"javascript-api/k6-http/get.md":     "---\ntitle: 'get'\n---\n## http.get(url)\n\nMake a GET request.\n",
+		"javascript-api/k6-http/post.md":    "---\ntitle: 'post'\n---\n## http.post(url, body)\n\nMake a POST request.\n",
+		"using-k6/_index.md":                "---\ntitle: 'Using k6'\n---\n# Using k6\n\nGuide to using k6.\n",
+		"using-k6/scenarios.md":             "---\ntitle: 'Scenarios'\n---\n# Scenarios\n\nScenarios let you configure execution.\n",
+		"examples/_index.md":                "---\ntitle: 'Examples'\n---\n# Examples\n\nExample scripts.\n",
+		"examples/websockets.md":            "---\ntitle: 'WebSockets'\n---\n# WebSockets\n\nWebSocket example content.\n",
 	}
 
 	for relPath, content := range mdFiles {
@@ -490,7 +491,7 @@ func TestPrintSearch(t *testing.T) {
 
 	t.Run("match in title groups by parent", func(t *testing.T) {
 		var buf bytes.Buffer
-		printSearch(&buf, idx, "Scenarios", cacheDir)
+		printSearch(&buf, idx, "Scenarios", cacheDir, "v0.55.x")
 		out := buf.String()
 
 		if !strings.Contains(out, `Results for "Scenarios"`) {
@@ -507,7 +508,7 @@ func TestPrintSearch(t *testing.T) {
 
 	t.Run("match in description shows group with description", func(t *testing.T) {
 		var buf bytes.Buffer
-		printSearch(&buf, idx, "GET request", cacheDir)
+		printSearch(&buf, idx, "GET request", cacheDir, "v0.55.x")
 		out := buf.String()
 
 		// Should be grouped under k6-http.
@@ -522,7 +523,7 @@ func TestPrintSearch(t *testing.T) {
 
 	t.Run("match in body content", func(t *testing.T) {
 		var buf bytes.Buffer
-		printSearch(&buf, idx, "WebSocket example content", cacheDir)
+		printSearch(&buf, idx, "WebSocket example content", cacheDir, "v0.55.x")
 		out := buf.String()
 
 		if !strings.Contains(out, "examples:") {
@@ -536,7 +537,7 @@ func TestPrintSearch(t *testing.T) {
 	t.Run("groups sorted alphabetically", func(t *testing.T) {
 		var buf bytes.Buffer
 		// Search for "k6" which should match multiple groups.
-		printSearch(&buf, idx, "k6", cacheDir)
+		printSearch(&buf, idx, "k6", cacheDir, "v0.55.x")
 		out := buf.String()
 
 		// Verify groups appear in alphabetical order.
@@ -556,7 +557,7 @@ func TestPrintSearch(t *testing.T) {
 
 	t.Run("no results", func(t *testing.T) {
 		var buf bytes.Buffer
-		printSearch(&buf, idx, "zzzznotfound", cacheDir)
+		printSearch(&buf, idx, "zzzznotfound", cacheDir, "v0.55.x")
 		out := buf.String()
 
 		if !strings.Contains(out, "(no results)") {
@@ -657,7 +658,7 @@ func TestPrintBestPractices(t *testing.T) {
 	cacheDir, _ := setupTestCache(t)
 
 	var buf bytes.Buffer
-	err := printBestPractices(&buf, cacheDir)
+	err := printBestPractices(&buf, cacheDir, "v0.55.x")
 	if err != nil {
 		t.Fatalf("printBestPractices: %v", err)
 	}
@@ -676,7 +677,7 @@ func TestPrintBestPracticesMissing(t *testing.T) {
 	dir := t.TempDir()
 	// No best_practices.md — should return error.
 	var buf bytes.Buffer
-	err := printBestPractices(&buf, dir)
+	err := printBestPractices(&buf, dir, "v0.55.x")
 	if err == nil {
 		t.Fatal("printBestPractices: expected error for missing file, got nil")
 	}

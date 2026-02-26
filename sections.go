@@ -49,8 +49,9 @@ func LoadIndex(dir string) (*Index, error) {
 }
 
 // Lookup returns the section with the given slug in O(1) time.
+// The lookup is case-insensitive.
 func (idx *Index) Lookup(slug string) (*Section, bool) {
-	sec, ok := idx.bySlug[slug]
+	sec, ok := idx.bySlug[strings.ToLower(slug)]
 	return sec, ok
 }
 

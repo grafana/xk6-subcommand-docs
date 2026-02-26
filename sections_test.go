@@ -55,6 +55,16 @@ func TestLookup(t *testing.T) {
 		}
 	})
 
+	t.Run("case insensitive", func(t *testing.T) {
+		sec, ok := idx.Lookup("Installation")
+		if !ok {
+			t.Fatal("Lookup(Installation): not found")
+		}
+		if sec.Slug != "installation" {
+			t.Errorf("Slug = %q, want %q", sec.Slug, "installation")
+		}
+	})
+
 	t.Run("missing slug", func(t *testing.T) {
 		_, ok := idx.Lookup("does-not-exist")
 		if ok {

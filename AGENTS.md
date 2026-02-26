@@ -4,7 +4,7 @@
 
 ## Browsing
 - `k6 x docs` shows categories with children and truncated descriptions (80 char max). Each category has a usage hint footer.
-- `k6 x docs http get` resolves args to a slug, reads the cached markdown, and prints it. If the topic has children, a subtopics footer is appended with comma-separated child names and a usage hint.
+- `k6 x docs http get` resolves args to a slug (case-insensitive), reads the cached markdown, and prints it. If the topic has children, a subtopics footer is appended with comma-separated child names and a usage hint.
 - `k6 x docs best-practices` prints a curated guide (embedded in the prepare tool via `//go:embed`).
 - `k6 x docs search <query>` fuzzy searches for the query (case-insensitive, ignores punctuation and spaces).
 

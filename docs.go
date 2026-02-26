@@ -99,7 +99,7 @@ func printTOC(w io.Writer, idx *Index, version string) {
 // printSection prints a section's markdown content, read from the cache dir.
 // If the section has children, a subtopics footer is appended.
 func printSection(w io.Writer, idx *Index, section *Section, cacheDir, version string) {
-	content := readMarkdown(cacheDir, section.RelPath)
+	content := readAndTransform(cacheDir, section.RelPath, version)
 	if content != "" {
 		fmt.Fprint(w, content)
 		if !strings.HasSuffix(content, "\n") {
@@ -177,13 +177,13 @@ func searchGroupKey(slug string) string {
 }
 
 // printSearch prints search results grouped hierarchically by topic.
-func printSearch(w io.Writer, idx *Index, term, cacheDir string) {
+func printSearch(w io.Writer, idx *Index, term, cacheDir, version string) {
 	readContent := func(slug string) string {
 		sec, ok := idx.Lookup(slug)
 		if !ok {
 			return ""
 		}
-		return readMarkdown(cacheDir, sec.RelPath)
+		return readAndTransform(cacheDir, sec.RelPath, version)
 	}
 
 	results := idx.Search(term, readContent)
@@ -264,13 +264,13 @@ func printSearch(w io.Writer, idx *Index, term, cacheDir string) {
 }
 
 // printBestPractices reads and prints the best_practices.md file from the cache.
-func printBestPractices(w io.Writer, cacheDir string) error {
+func printBestPractices(w io.Writer, cacheDir, version string) error {
 	path := filepath.Join(cacheDir, "best_practices.md")
 	data, err := os.ReadFile(path)
 	if err != nil {
 		return fmt.Errorf("read best practices: %w", err)
 	}
-	content := StripFrontmatter(string(data))
+	content := Transform(string(data), version)
 	fmt.Fprint(w, content)
 	if !strings.HasSuffix(content, "\n") {
 		fmt.Fprintln(w)
@@ -284,7 +284,7 @@ func printAll(w io.Writer, idx *Index, cacheDir, version string) {
 
 	for i := range idx.Sections {
 		sec := &idx.Sections[i]
-		content := readMarkdown(cacheDir, sec.RelPath)
+		content := readAndTransform(cacheDir, sec.RelPath, version)
 		if content == "" {
 			continue
 		}
@@ -304,4 +304,13 @@ func readMarkdown(cacheDir, relPath string) string {
 		return ""
 	}
 	return string(data)
+}
+
+// readAndTransform reads a markdown file and applies runtime transforms.
+func readAndTransform(cacheDir, relPath, version string) string {
+	raw := readMarkdown(cacheDir, relPath)
+	if raw == "" {
+		return ""
+	}
+	return Transform(raw, version)
 }

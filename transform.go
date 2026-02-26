@@ -41,31 +41,15 @@ var includedCategories = map[string]bool{
 	"reference":        true,
 }
 
-// Transform applies Hugo shortcode resolution and markdown cleanup to content.
-// The pipeline runs in a fixed order:
-//  1. Resolve docs/shared shortcodes
-//  2. Strip code tags
-//  3. Convert admonitions to blockquotes
-//  4. Strip section tags
-//  5. Strip remaining shortcodes
-//  5a. Strip React/MDX component tags (PascalCase)
-//  5b. Strip <br/> tags
-//  6. Replace <K6_VERSION> with version
-//  7. Convert internal docs links to plain text
-//  7a. Strip remaining markdown image links
-//  7b. Strip remaining markdown links
-//  8. Strip HTML comments
-//  9. Strip YAML frontmatter
-//  10. Normalize whitespace
-func Transform(content, version string, sharedContent map[string]string) string {
+// PrepareTransform resolves docs/shared shortcodes using the shared content
+// map. This runs at bundle build time because shared content files are not
+// shipped in the bundle.
+func PrepareTransform(content string, sharedContent map[string]string) string {
 	if content == "" {
 		return ""
 	}
 
-	s := content
-
-	// 1. Resolve shared shortcodes.
-	s = reShared.ReplaceAllStringFunc(s, func(match string) string {
+	return reShared.ReplaceAllStringFunc(content, func(match string) string {
 		m := reShared.FindStringSubmatch(match)
 		if m == nil || sharedContent == nil {
 			return ""
@@ -76,8 +60,33 @@ func Transform(content, version string, sharedContent map[string]string) string 
 		}
 		return StripFrontmatter(raw)
 	})
+}
 
-	// 2. Strip code tags (keep content between them).
+// Transform applies markdown cleanup to content. It handles all pure text
+// transforms (shortcode stripping, admonition conversion, link stripping,
+// frontmatter removal, whitespace normalization). The pipeline runs in a
+// fixed order:
+//  1. Strip code tags
+//  2. Convert admonitions to blockquotes
+//  3. Strip section tags
+//  4. Strip remaining shortcodes
+//  4a. Strip React/MDX component tags (PascalCase)
+//  4b. Strip <br/> tags
+//  5. Replace <K6_VERSION> with version
+//  6. Convert internal docs links to plain text
+//  6a. Strip remaining markdown image links
+//  6b. Strip remaining markdown links
+//  7. Strip HTML comments
+//  8. Strip YAML frontmatter
+//  9. Normalize whitespace
+func Transform(content, version string) string {
+	if content == "" {
+		return ""
+	}
+
+	s := content
+
+	// 1. Strip code tags (keep content between them).
 	s = reCodeTag.ReplaceAllString(s, "")
 
 	// 3. Convert admonitions to blockquotes.

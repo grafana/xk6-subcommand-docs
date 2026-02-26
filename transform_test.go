@@ -62,7 +62,7 @@ func TestStripFrontmatter(t *testing.T) {
 	}
 }
 
-func TestTransform_ResolveShared(t *testing.T) {
+func TestPrepareTransform_ResolveShared(t *testing.T) {
 	t.Parallel()
 
 	shared := map[string]string{
@@ -101,9 +101,7 @@ func TestTransform_ResolveShared(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			got := Transform(tt.content, "v1.5.x", shared)
-			// Only check the shared resolution part — other steps may also run.
-			// We check that the shared content is present and shortcode is gone.
+			got := PrepareTransform(tt.content, shared)
 			if !strings.Contains(got, "k6/http module handles HTTP") && tt.name == "resolve shared shortcode" {
 				t.Errorf("expected shared content to be inlined, got: %q", got)
 			}
@@ -111,6 +109,15 @@ func TestTransform_ResolveShared(t *testing.T) {
 				t.Errorf("shortcode should have been removed, got: %q", got)
 			}
 		})
+	}
+}
+
+func TestPrepareTransform_Empty(t *testing.T) {
+	t.Parallel()
+
+	got := PrepareTransform("", nil)
+	if got != "" {
+		t.Errorf("expected empty string, got: %q", got)
 	}
 }
 
@@ -138,7 +145,7 @@ func TestTransform_StripCodeTags(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			got := Transform(tt.content, "v1.0.0", nil)
+			got := Transform(tt.content, "v1.0.0")
 			if got != tt.want {
 				t.Errorf("got:\n%s\nwant:\n%s", got, tt.want)
 			}
@@ -203,7 +210,7 @@ Line three.
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			got := Transform(tt.content, "v1.0.0", nil)
+			got := Transform(tt.content, "v1.0.0")
 			if got != tt.want {
 				t.Errorf("got:\n%q\nwant:\n%q", got, tt.want)
 			}
@@ -240,7 +247,7 @@ func TestTransform_StripSection(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			got := Transform(tt.content, "v1.0.0", nil)
+			got := Transform(tt.content, "v1.0.0")
 			if got != tt.want {
 				t.Errorf("got: %q, want: %q", got, tt.want)
 			}
@@ -282,7 +289,7 @@ func TestTransform_StripRemainingShortcodes(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			got := Transform(tt.content, "v1.0.0", nil)
+			got := Transform(tt.content, "v1.0.0")
 			if got != tt.want {
 				t.Errorf("got: %q, want: %q", got, tt.want)
 			}
@@ -317,7 +324,7 @@ func TestTransform_ReplaceVersion(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			got := Transform(tt.content, tt.version, nil)
+			got := Transform(tt.content, tt.version)
 			if got != tt.want {
 				t.Errorf("got: %q, want: %q", got, tt.want)
 			}
@@ -399,7 +406,7 @@ func TestTransform_ConvertInternalLinks(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			got := Transform(tt.content, "v1.5.x", nil)
+			got := Transform(tt.content, "v1.5.x")
 			if got != tt.want {
 				t.Errorf("got: %q, want: %q", got, tt.want)
 			}
@@ -456,7 +463,7 @@ func TestTransform_StripMarkdownLinks(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			got := Transform(tt.content, "v1.0.0", nil)
+			got := Transform(tt.content, "v1.0.0")
 			if got != tt.want {
 				t.Errorf("got: %q, want: %q", got, tt.want)
 			}
@@ -493,7 +500,7 @@ func TestTransform_StripHTMLComments(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			got := Transform(tt.content, "v1.0.0", nil)
+			got := Transform(tt.content, "v1.0.0")
 			if got != tt.want {
 				t.Errorf("got: %q, want: %q", got, tt.want)
 			}
@@ -507,7 +514,7 @@ func TestTransform_StripFrontmatter(t *testing.T) {
 	content := "---\ntitle: 'Checks'\ndescription: 'Some description.'\nweight: 400\n---\n\n# Checks\n\nContent here."
 	want := "\n# Checks\n\nContent here."
 
-	got := Transform(content, "v1.0.0", nil)
+	got := Transform(content, "v1.0.0")
 	if got != want {
 		t.Errorf("got: %q, want: %q", got, want)
 	}
@@ -552,7 +559,7 @@ func TestTransform_NormalizeWhitespace(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			got := Transform(tt.content, "v1.0.0", nil)
+			got := Transform(tt.content, "v1.0.0")
 			if got != tt.want {
 				t.Errorf("got: %q, want: %q", got, tt.want)
 			}
@@ -607,7 +614,7 @@ If you need the whole test to fail based on the results of a check, you have to 
 
 - [Check API](https://grafana.com/docs/k6/<K6_VERSION>/javascript-api/k6/check)`
 
-	got := Transform(input, "v1.5.x", nil)
+	got := Transform(input, "v1.5.x")
 
 	// Should not contain frontmatter.
 	if strings.Contains(got, "title: 'Checks'") {
@@ -673,7 +680,8 @@ weight: 09
 
 {{< docs/shared source="k6" lookup="javascript-api/k6-http.md" version="<K6_VERSION>" >}}`
 
-	got := Transform(input, "v1.5.x", shared)
+	prepared := PrepareTransform(input, shared)
+	got := Transform(prepared, "v1.5.x")
 
 	if strings.Contains(got, "title: 'k6/http'") {
 		t.Error("frontmatter should be stripped")
@@ -740,7 +748,7 @@ running (00m12.8s), 00/20 VUs
 
 {{< /collapse >}}`
 
-	got := Transform(input, "v1.5.x", nil)
+	got := Transform(input, "v1.5.x")
 
 	// Frontmatter gone.
 	if strings.Contains(got, "title: Scenarios") {
@@ -834,7 +842,7 @@ func TestTransform_StripComponentTags(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			got := Transform(tt.content, "v1.0.0", nil)
+			got := Transform(tt.content, "v1.0.0")
 			if got != tt.want {
 				t.Errorf("got: %q, want: %q", got, tt.want)
 			}
@@ -876,7 +884,7 @@ func TestTransform_StripBrTags(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			got := Transform(tt.content, "v1.0.0", nil)
+			got := Transform(tt.content, "v1.0.0")
 			if got != tt.want {
 				t.Errorf("got: %q, want: %q", got, tt.want)
 			}
@@ -887,7 +895,7 @@ func TestTransform_StripBrTags(t *testing.T) {
 func TestTransform_EmptyInput(t *testing.T) {
 	t.Parallel()
 
-	got := Transform("", "v1.0.0", nil)
+	got := Transform("", "v1.0.0")
 	if got != "" {
 		t.Errorf("expected empty string, got: %q", got)
 	}
@@ -897,7 +905,7 @@ func TestTransform_NoOp(t *testing.T) {
 	t.Parallel()
 
 	input := "# Simple markdown\n\nJust text, nothing special."
-	got := Transform(input, "v1.0.0", nil)
+	got := Transform(input, "v1.0.0")
 	if got != input {
 		t.Errorf("got: %q, want: %q", got, input)
 	}

@@ -76,7 +76,7 @@ func newDocsCmd(gs *state.GlobalState, stdout io.Writer) *cobra.Command {
 			}
 
 			if args[0] == "best-practices" {
-				if err := printBestPractices(w, cacheDir); err != nil {
+				if err := printBestPractices(w, cacheDir, version); err != nil {
 					return err
 				}
 				return pipeRenderer(buf, os.Stdout, baseW, cfg.Renderer)
@@ -112,13 +112,13 @@ func newDocsCmd(gs *state.GlobalState, stdout io.Writer) *cobra.Command {
 		Short: "Search documentation",
 		Args:  cobra.MinimumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			_, cacheDir, idx, err := setup(versionFlag, cacheDirFlg)
+			version, cacheDir, idx, err := setup(versionFlag, cacheDirFlg)
 			if err != nil {
 				return err
 			}
 
 			term := strings.Join(args, " ")
-			printSearch(cmd.OutOrStdout(), idx, term, cacheDir)
+			printSearch(cmd.OutOrStdout(), idx, term, cacheDir, version)
 			return nil
 		},
 	}
