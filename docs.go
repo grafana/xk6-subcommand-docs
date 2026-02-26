@@ -8,30 +8,17 @@ import (
 	"strings"
 )
 
-// slugToShortArgs converts a canonical slug to the short CLI form.
-//
-// Examples:
-//
-//	"javascript-api/k6-http/get"           -> "http get"
-//	"javascript-api/k6-browser/page/click" -> "browser page click"
-//	"using-k6/scenarios"                   -> "using-k6 scenarios"
-//	"examples/websockets"                  -> "examples websockets"
-func slugToShortArgs(slug string) string {
-	parts := strings.Split(slug, "/")
-	if len(parts) == 0 {
-		return slug
+// childName returns the short name of a child relative to its parent.
+// If the child slug starts with parentSlug+"/", the prefix is stripped.
+// Otherwise, the last path segment is returned.
+func childName(childSlug, parentSlug string) string {
+	if strings.HasPrefix(childSlug, parentSlug+"/") {
+		return childSlug[len(parentSlug)+1:]
 	}
-
-	// JavaScript API modules: strip "javascript-api" prefix and "k6-" from the module name.
-	if parts[0] == "javascript-api" && len(parts) > 1 {
-		module := strings.TrimPrefix(parts[1], "k6-")
-		rest := parts[2:]
-		out := append([]string{module}, rest...)
-		return strings.Join(out, " ")
+	if i := strings.LastIndex(childSlug, "/"); i >= 0 {
+		return childSlug[i+1:]
 	}
-
-	// Everything else: join parts with spaces.
-	return strings.Join(parts, " ")
+	return childSlug
 }
 
 // printTOC prints the table of contents grouped by category.
@@ -47,12 +34,12 @@ func printTOC(w io.Writer, idx *Index, version string) {
 		children := idx.Children(cat.Slug)
 		if len(children) == 0 {
 			// Show the category itself if it has no children.
-			fmt.Fprintf(w, "  %-20s %s\n", slugToShortArgs(cat.Slug), cat.Description)
+			fmt.Fprintf(w, "  %-20s %s\n", childName(cat.Slug, ""), cat.Description)
 			continue
 		}
 
 		for _, child := range children {
-			name := slugToShortArgs(child.Slug)
+			name := childName(child.Slug, cat.Slug)
 			fmt.Fprintf(w, "  %-20s %s\n", name, child.Description)
 		}
 	}
@@ -74,12 +61,13 @@ func printSection(w io.Writer, idx *Index, section *Section, cacheDir, version s
 	if len(children) > 0 {
 		names := make([]string, 0, len(children))
 		for _, c := range children {
-			names = append(names, slugToShortArgs(c.Slug))
+			names = append(names, childName(c.Slug, section.Slug))
 		}
 
+		fmt.Fprintln(w)
 		fmt.Fprintln(w, "---")
 		fmt.Fprintf(w, "Subtopics: %s\n", strings.Join(names, ", "))
-		fmt.Fprintf(w, "Use: k6 x docs %s <subtopic>\n", slugToShortArgs(section.Slug))
+		fmt.Fprintf(w, "Use: k6 x docs %s <subtopic>\n", childName(section.Slug, ""))
 	}
 }
 
@@ -106,7 +94,7 @@ func printList(w io.Writer, idx *Index, slug string) {
 
 	fmt.Fprintln(w)
 	for _, child := range children {
-		name := slugToShortArgs(child.Slug)
+		name := childName(child.Slug, slug)
 		fmt.Fprintf(w, "  %-20s %s\n", name, child.Description)
 	}
 }
@@ -132,7 +120,7 @@ func printSearch(w io.Writer, idx *Index, term, cacheDir string) {
 
 	fmt.Fprintln(w)
 	for _, sec := range results {
-		name := slugToShortArgs(sec.Slug)
+		name := childName(sec.Slug, "")
 		fmt.Fprintf(w, "  %-20s %s\n", name, sec.Description)
 	}
 }
