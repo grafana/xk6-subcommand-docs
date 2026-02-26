@@ -1,0 +1,131 @@
+package docs
+
+import (
+	"archive/tar"
+	"fmt"
+	"io"
+	"net/http"
+	"os"
+	"path/filepath"
+	"strings"
+
+	"github.com/klauspost/compress/zstd"
+)
+
+// HTTPClient is the interface used to download doc bundles.
+type HTTPClient interface {
+	Get(url string) (*http.Response, error)
+}
+
+// CacheDir returns the local cache directory for a given docs version.
+// The layout is ~/.local/share/k6/docs/{version}/.
+func CacheDir(version string) (string, error) {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return "", fmt.Errorf("cache dir: %w", err)
+	}
+	return filepath.Join(home, ".local", "share", "k6", "docs", version), nil
+}
+
+// IsCached reports whether the docs for the given version are already cached.
+func IsCached(version string) bool {
+	dir, err := CacheDir(version)
+	if err != nil {
+		return false
+	}
+	info, err := os.Stat(dir)
+	return err == nil && info.IsDir()
+}
+
+// EnsureDocs downloads and extracts the doc bundle for the given version if it
+// is not already cached. It returns the path to the cache directory.
+func EnsureDocs(version string, httpClient HTTPClient) (string, error) {
+	dir, err := CacheDir(version)
+	if err != nil {
+		return "", err
+	}
+
+	if IsCached(version) {
+		return dir, nil
+	}
+
+	resp, err := httpClient.Get(downloadURL(version))
+	if err != nil {
+		return "", fmt.Errorf("download docs %s: %w", version, err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return "", fmt.Errorf("download docs %s: HTTP %d", version, resp.StatusCode)
+	}
+
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		return "", fmt.Errorf("create cache dir: %w", err)
+	}
+
+	if err := extract(resp.Body, dir); err != nil {
+		// Clean up partial extraction.
+		os.RemoveAll(dir)
+		return "", fmt.Errorf("extract docs %s: %w", version, err)
+	}
+
+	return dir, nil
+}
+
+// extract decompresses a zstd-compressed tar stream into destDir.
+func extract(r io.Reader, destDir string) error {
+	zr, err := zstd.NewReader(r)
+	if err != nil {
+		return fmt.Errorf("zstd reader: %w", err)
+	}
+	defer zr.Close()
+
+	tr := tar.NewReader(zr)
+	for {
+		hdr, err := tr.Next()
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			return fmt.Errorf("tar next: %w", err)
+		}
+
+		clean := filepath.Clean(hdr.Name)
+		if filepath.IsAbs(clean) || strings.HasPrefix(clean, ".."+string(filepath.Separator)) || clean == ".." {
+			return fmt.Errorf("illegal path traversal in tar entry: %q", hdr.Name)
+		}
+
+		target := filepath.Join(destDir, clean)
+
+		switch hdr.Typeflag {
+		case tar.TypeDir:
+			if err := os.MkdirAll(target, 0o755); err != nil {
+				return fmt.Errorf("mkdir %s: %w", target, err)
+			}
+		case tar.TypeReg:
+			if err := os.MkdirAll(filepath.Dir(target), 0o755); err != nil {
+				return fmt.Errorf("mkdir parent %s: %w", target, err)
+			}
+			f, err := os.OpenFile(target, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, os.FileMode(hdr.Mode)&0o755)
+			if err != nil {
+				return fmt.Errorf("create %s: %w", target, err)
+			}
+			if _, err := io.Copy(f, tr); err != nil {
+				f.Close()
+				return fmt.Errorf("write %s: %w", target, err)
+			}
+			if err := f.Close(); err != nil {
+				return fmt.Errorf("close %s: %w", target, err)
+			}
+		}
+	}
+
+	return nil
+}
+
+// downloadURL returns the release URL for a given docs version.
+func downloadURL(version string) string {
+	const base = "https://github.com/grafana/xk6-subcommand-docs/releases/download"
+	tag := "docs-" + version
+	return base + "/" + tag + "/" + tag + ".tar.zst"
+}
