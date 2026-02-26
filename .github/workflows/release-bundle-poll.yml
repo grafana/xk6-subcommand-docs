@@ -29,13 +29,14 @@ jobs:
           WILDCARD=$(echo "$LATEST" | sed 's/\.[0-9]*$/.x/')
           echo "Wildcard version: $WILDCARD"
 
-          # Check if we already have a bundle for this version
-          EXISTING=$(gh release list --limit 100 --json tagName -q ".[].tagName" | grep "docs-${WILDCARD}" || true)
+          # Check if the asset already exists in the doc-bundles release
+          ASSET="docs-${WILDCARD}.tar.zst"
+          EXISTING=$(gh release view doc-bundles --json assets -q ".assets[].name" 2>/dev/null | grep "^${ASSET}$" || true)
           if [ -n "$EXISTING" ]; then
-            echo "Bundle already exists for $WILDCARD"
+            echo "Asset $ASSET already exists in doc-bundles release"
             echo "skip=true" >> "$GITHUB_OUTPUT"
           else
-            echo "No bundle for $WILDCARD — building"
+            echo "No asset $ASSET — building"
             echo "skip=false" >> "$GITHUB_OUTPUT"
             echo "version=$WILDCARD" >> "$GITHUB_OUTPUT"
           fi
@@ -54,7 +55,8 @@ jobs:
         if: steps.check.outputs.skip != 'true'
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: docs-${{ steps.check.outputs.version }}
-          name: "Docs bundle for k6 ${{ steps.check.outputs.version }}"
+          tag_name: doc-bundles
+          name: "Doc bundles"
+          make_latest: false
           files: docs-${{ steps.check.outputs.version }}.tar.zst
-          body: "Auto-generated documentation bundle for k6 ${{ steps.check.outputs.version }}"
+          body: "Auto-generated documentation bundles for k6"

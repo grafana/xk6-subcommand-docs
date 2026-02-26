@@ -1,11 +1,11 @@
 **RULES:**
 1. **Update this file concisely** whenever features are added, removed, or changed.
 2. **TDD**: Always use red/green/refactor. Tests must compile and fail on assertions before writing implementation.
-3. **Plans**: Store plans in `.claude/plans/` with incrementing numbers (next: `5-<name>.md`).
+3. **Plans**: Store plans in `.claude/plans/` with incrementing numbers (next: `6-<name>.md`).
 
 ---
 
-`k6 x docs` — offline k6 documentation in the terminal. For humans and AI agents. Docs are not embedded in the binary. On first run, the extension detects the k6 version from build info, downloads a matching compressed doc bundle (`.tar.zst`) from GitHub releases, and caches it locally (`~/.local/share/k6/docs/{version}/`). Subsequent runs serve from cache with no network. A separate standalone prepare tool (`cmd/prepare/`) builds these bundles by cloning the k6-docs Hugo repository, transforming markdown into CLI-friendly format, building a searchable index (`sections.json`), and compressing everything. CI auto-publishes a bundle per k6 release.
+`k6 x docs` — offline k6 documentation in the terminal. For humans and AI agents. Docs are not embedded in the binary. On first run, the extension detects the k6 version from build info, downloads a matching compressed doc bundle (`.tar.zst`) from GitHub releases, and caches it locally (`~/.local/share/k6/docs/{version}/`). Subsequent runs serve from cache with no network. A separate standalone prepare tool (`cmd/prepare/`) builds these bundles by cloning the k6-docs Hugo repository, transforming markdown into CLI-friendly format, building a searchable index (`sections.json`), and compressing everything. CI auto-publishes bundles as assets under a single `doc-bundles` GitHub release.
 
 ## Browsing
 - `k6 x docs` shows categories with children and truncated descriptions (80 char max). Each category has a usage hint footer.
@@ -34,6 +34,7 @@
 - Maps to wildcard: `v1.5.0` → `v1.5.x`, `v1.6.0-rc.1` → `v1.6.x`.
 - Override via `--version` flag or `K6_DOCS_VERSION` env var.
 - Cache dir override via `--cache-dir` flag or `K6_DOCS_CACHE_DIR` env var.
+- `go.mod` floor for `go.k6.io/k6` must stay at v1.5.0 so Go's MVS doesn't override the k6 version users build with via xk6. Extension code can only use k6 APIs from v1.5.0; use build tags if newer APIs are needed.
 
 ### Bundle preparation (standalone `cmd/prepare/`)
 - Clones k6-docs if not present, checks out matching tag.
@@ -45,8 +46,8 @@
 
 ### CI/CD
 - **CI** — lint + test + build on push/PR to main.
-- **Release bundle** — triggered by k6 release dispatch or manual. Clones k6-docs, runs prepare, compresses with `zstd --ultra -22`, publishes GitHub release tagged `docs-v{major}.{minor}.x`.
-- **Release poll** — manual fallback (schedule disabled). Polls k6 releases, builds if bundle missing.
+- **Release bundle** — triggered by k6 release dispatch or manual. Clones k6-docs, runs prepare, compresses with `zstd --ultra -22`, publishes asset to the single `doc-bundles` GitHub release.
+- **Release poll** — manual fallback (schedule disabled). Polls k6 releases, builds if asset missing from the `doc-bundles` release.
 
 ### Categories
 `javascript-api`, `using-k6`, `using-k6-browser`, `examples`, `extensions`, `results-output`, `testing-guides`, `set-up`

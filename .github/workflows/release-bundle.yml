@@ -40,7 +40,8 @@ jobs:
       - name: Publish release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: docs-${{ steps.version.outputs.wildcard }}
-          name: "Docs bundle for k6 ${{ steps.version.outputs.wildcard }}"
+          tag_name: doc-bundles
+          name: "Doc bundles"
+          make_latest: false
           files: docs-${{ steps.version.outputs.wildcard }}.tar.zst
-          body: "Auto-generated documentation bundle for k6 ${{ steps.version.outputs.exact }}"
+          body: "Auto-generated documentation bundles for k6"

@@ -83,7 +83,7 @@ Doc bundles are published as GitHub releases through two triggers:
 - **Primary:** `repository_dispatch` from k6's release workflow
 - **Fallback:** Scheduled poll (disabled by default)
 
-The pipeline clones [k6-docs](https://github.com/grafana/k6-docs), transforms Hugo markdown into a compact format, compresses with zstd, and publishes as a GitHub release tagged `docs-v{major}.{minor}.x`.
+The pipeline clones [k6-docs](https://github.com/grafana/k6-docs), transforms Hugo markdown into a compact format, compresses with zstd, and publishes as an asset to the single `doc-bundles` GitHub release.
 
 ## Claude Code Skill
 

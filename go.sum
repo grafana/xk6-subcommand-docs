@@ -39,8 +39,8 @@ github.com/mattn/go-colorable v0.1.14 h1:9A9LHSqF/7dyVVX6g0U9cwm9pG3kP9gSzcuIPHP
 github.com/mattn/go-colorable v0.1.14/go.mod h1:6LmQG8QLFO4G5z1gPvYEzlUgJ2wF+stgPZH1UqBm1s8=
 github.com/mattn/go-isatty v0.0.20 h1:xfD0iDuEKnDkl03q4limB+vH+GxLEtL/jb4xVJSWWEY=
 github.com/mattn/go-isatty v0.0.20/go.mod h1:W+V8PltTTMOvKvAeJH7IuucS94S2C6jfK/D7dTCTo3Y=
-github.com/mccutchen/go-httpbin/v2 v2.20.0 h1:iMUzhdbAcjo9hepfG5W3hz1yWAyxiYlJMzKQtwyGDms=
-github.com/mccutchen/go-httpbin/v2 v2.20.0/go.mod h1:GBy5I7XwZ4ZLhT3hcq39I4ikwN9x4QUt6EAxNiR8Jus=
+github.com/mccutchen/go-httpbin/v2 v2.18.3 h1:DyckIScjHLJtmlSju+rgjqqI1nL8AdMZHsLSljlbnMU=
+github.com/mccutchen/go-httpbin/v2 v2.18.3/go.mod h1:GBy5I7XwZ4ZLhT3hcq39I4ikwN9x4QUt6EAxNiR8Jus=
 github.com/mstoykov/atlas v0.0.0-20220811071828-388f114305dd h1:AC3N94irbx2kWGA8f/2Ks7EQl2LxKIRQYuT9IJDwgiI=
 github.com/mstoykov/atlas v0.0.0-20220811071828-388f114305dd/go.mod h1:9vRHVuLCjoFfE3GT06X0spdOAO+Zzo4AMjdIwUHBvAk=
 github.com/mstoykov/envconfig v1.5.0 h1:E2FgWf73BQt0ddgn7aoITkQHmgwAcHup1s//MsS5/f8=
@@ -62,8 +62,8 @@ github.com/stretchr/objx v0.1.0/go.mod h1:HFkY916IF+rwdDfMAkV7OtwuqBVzrE8GR6GFx+
 github.com/stretchr/testify v1.7.0/go.mod h1:6Fq8oRcR53rry900zMqJjRRixrwX3KX962/h/Wwjteg=
 github.com/stretchr/testify v1.11.1 h1:7s2iGBzp5EwR7/aIZr8ao5+dra3wiQyKjjFuvgVKu7U=
 github.com/stretchr/testify v1.11.1/go.mod h1:wZwfW3scLgRK+23gO65QZefKpKQRnfz6sD981Nm4B6U=
-go.k6.io/k6 v1.6.0 h1:cDFx9g6T7HhkPrfVt8P2OtKyXB4v/LaqkD60Hz4gyxs=
-go.k6.io/k6 v1.6.0/go.mod h1:x5LUpkFmXoRcYOIKtWOsjbXjuck3lwUISqUzq3UBRh4=
+go.k6.io/k6 v1.5.0 h1:+4gR1V6IwITZlhc8VAhMZ4haOAqUpf2u17Z8hfT2vJc=
+go.k6.io/k6 v1.5.0/go.mod h1:Ne89wQy380sA3I2RMBoFGGocF5gQ7bmUxJovhG4NMy4=
 go.opentelemetry.io/auto/sdk v1.2.1 h1:jXsnJ4Lmnqd11kwkBV2LgLoFMZKizbCi5fNZ/ipaZ64=
 go.opentelemetry.io/auto/sdk v1.2.1/go.mod h1:KRTj+aOaElaLi+wW1kO/DZRXwkF4C5xPbEe3ZiIhN7Y=
 go.opentelemetry.io/otel v1.38.0 h1:RkfdswUDRimDg0m2Az18RKOsnI8UDzppJAtj01/Ymk8=
