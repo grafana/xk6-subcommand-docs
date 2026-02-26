@@ -1,0 +1,37 @@
+
+# mainFrame()
+
+The page's main frame. Page is made up of frames in a hierarchical. At the top is `mainFrame`. A page is guaranteed to have a main frame.
+
+### Returns
+
+| Type                                                                                            | Description            |
+| ----------------------------------------------------------------------------------------------- | ---------------------- |
+| Frame | The page's main frame. |
+
+### Example
+
+```javascript
+import { browser } from 'k6/browser';
+
+export const options = {
+  scenarios: {
+    browser: {
+      executor: 'shared-iterations',
+      options: {
+        browser: {
+          type: 'chromium',
+        },
+      },
+    },
+  },
+};
+
+export default async function () {
+  const page = await browser.newPage();
+
+  await page.goto('https://test.k6.io/browser.php');
+  console.log(page.mainFrame());
+}
+```
+

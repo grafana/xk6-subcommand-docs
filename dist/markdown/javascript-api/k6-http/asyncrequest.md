@@ -1,0 +1,72 @@
+
+# asyncRequest( method, url, [body], [params] )
+
+| Parameter         | Type                                                                                            | Description                                                                                                                       |
+| ----------------- | ----------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
+| method            | string                                                                                          | Request method (e.g. `'POST'`). Must be uppercase.                                                                                |
+| url               | string /HTTP URL | Request URL (e.g. `'http://example.com'`).                                                                                        |
+| body (optional)   | string / object / ArrayBuffer                                                                   | Request body. Objects will be `x-www-form-urlencoded` encoded.                                                                    |
+| params (optional) | object                                                                                          | Params object containing additional request parameters. |
+
+### Returns
+
+| Type                  | Description                                                                                       |
+| --------------------- | ------------------------------------------------------------------------------------------------- |
+| Promise with Response | HTTP Response object. |
+
+### Examples
+
+Using http.asyncRequest() to issue a POST request:
+
+```javascript
+import http from 'k6/http';
+
+const url = 'https://quickpizza.grafana.com/api/post';
+
+export default async function () {
+  const data = { name: 'Bert' };
+
+  // Using a JSON string as body
+  const res = await http.asyncRequest('POST', url, JSON.stringify(data), {
+    headers: { 'Content-Type': 'application/json' },
+  });
+  console.log(res.json().name); // Bert
+
+  // Using an object as body, the headers will automatically include
+  // 'Content-Type: application/x-www-form-urlencoded'.
+  await http.asyncRequest('POST', url, data);
+}
+```
+
+Using `http.asyncRequest()` to issue multiple requests, then [Promise.race](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Promise/race) to determine which requests finish first:
+
+```javascript
+import http from 'k6/http';
+
+export default async () => {
+  const urlOne = `https://quickpizza.grafana.com/api/delay/${randomInt(1, 5)}`;
+  const urlTwo = `https://quickpizza.grafana.com/api/delay/${randomInt(1, 5)}`;
+  const urlThree = `https://quickpizza.grafana.com/api/delay/${randomInt(1, 5)}`;
+
+  const one = http.asyncRequest('GET', urlOne);
+  const two = http.asyncRequest('GET', urlTwo);
+  const three = http.asyncRequest('GET', urlThree);
+
+  console.log('Racing:');
+  console.log(urlOne);
+  console.log(urlTwo);
+  console.log(urlThree);
+
+  const res = await Promise.race([one, two, three]);
+  console.log('winner is', res.url, 'with duration of', res.timings.duration + 'ms');
+};
+
+function randomInt(min, max) {
+  return Math.floor(Math.random() * (max - min) + min);
+}
+```
+
+> **Note:** `http.asyncRequest` has no current way to abort a request.
+> In the preceding script, after `res` gets the value from the fastest request, the other requests will continue to execute.
+> This might block the end of the iteration, because the iteration only stops once all async jobs finish.
+

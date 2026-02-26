@@ -1,0 +1,45 @@
+
+# isEditable()
+
+> **Warning:** Use `locator.isEditable([options])` instead.
+
+Checks if the element is editable.
+
+### Returns
+
+| Type            | Description                                                                   |
+| --------------- | ----------------------------------------------------------------------------- |
+| `Promise<bool>` | A Promise that fulfills with `true` if the element is editable, else `false`. |
+
+### Example
+
+```javascript
+import { browser } from 'k6/browser';
+
+export const options = {
+  scenarios: {
+    browser: {
+      executor: 'shared-iterations',
+      options: {
+        browser: {
+          type: 'chromium',
+        },
+      },
+    },
+  },
+};
+
+export default async function () {
+  const page = await browser.newPage();
+  await page.goto('https://test.k6.io/browser.php');
+
+  const text = await page.$('#text1');
+  const isEditable = await text.isEditable();
+  if (isEditable) {
+    text.fill('hello world!');
+  }
+
+  await page.close();
+}
+```
+

@@ -1,0 +1,45 @@
+
+# $(selector)
+
+> **Warning:** Use `page.locator(selector[, options])` instead.
+
+Queries the element for the given selector in the ElementHandle's subtree.
+
+| Parameter | Type     | Default | Description                           |
+| --------- | -------- | ------- | ------------------------------------- |
+| selector  | `string` |         | A selector to query the elements for. |
+
+### Returns
+
+| Type                             | Description                                                                                                                                                                            |
+| -------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `Promise<null \| ElementHandle>` | A Promise that fulfills with the ElementHandle for the first element found. If no element is found, the Promise resolves to `null`. |
+
+### Example
+
+```javascript
+import { browser } from 'k6/browser';
+
+export const options = {
+  scenarios: {
+    browser: {
+      executor: 'shared-iterations',
+      options: {
+        browser: {
+          type: 'chromium',
+        },
+      },
+    },
+  },
+};
+
+export default async function () {
+  const page = await browser.newPage();
+
+  await page.goto('https://test.k6.io/browser.php');
+  const textbox = await page.$('#text1');
+  // ...
+  await page.close();
+}
+```
+

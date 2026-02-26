@@ -1,0 +1,13 @@
+
+# k6
+
+The `k6` module contains k6-specific functionality.
+
+| Function                                                                                     | Description                                                                                                                                  |
+| -------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
+| check(val, sets, [tags]) | Runs one or more checks on a value and generates a pass/fail result but does not throw errors or otherwise interrupt execution upon failure. |
+| fail([err])               | Throws an error, failing and aborting the current VU script iteration immediately.                                                           |
+| group(name, fn)          | Runs code inside a group. Used to organize results in a test.                                                                                |
+| randomSeed(int)    | Set seed to get a reproducible pseudo-random number using `Math.random`.                                                                     |
+| sleep(t)                 | Suspends VU execution for the specified duration.                                                                                            |
+

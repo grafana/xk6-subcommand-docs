@@ -1,0 +1,37 @@
+
+# clearPermissions()
+
+Clears all permission overrides for the browser context.
+
+### Returns
+
+| Type            | Description                                                                                                                                                                   |
+| --------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `Promise<void>` | A Promise that fulfills when the permissions have been cleared from the browser context. |
+
+### Example
+
+```javascript
+import { browser } from 'k6/browser';
+
+export const options = {
+  scenarios: {
+    browser: {
+      executor: 'shared-iterations',
+      options: {
+        browser: {
+          type: 'chromium',
+        },
+      },
+    },
+  },
+};
+
+export default async function () {
+  const context = await browser.newContext();
+  await context.grantPermissions(['clipboard-read']);
+  // do stuff ...
+  await context.clearPermissions();
+}
+```
+

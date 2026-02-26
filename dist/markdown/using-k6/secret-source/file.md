@@ -1,0 +1,25 @@
+
+# File secret source
+
+The file secret source loads secrets from a plain text file.
+
+Each line in the file contains one secret in `key=value` format:
+
+```text
+secret=very secret
+someotherkey=another secret
+```
+
+To use the file secret source, specify the file path with the `--secret-source` flag:
+
+```bash
+k6 run --secret-source=file=secrets.file script.js
+```
+
+```docker
+docker run -it --rm \
+  -v <SCRIPT_DIR>:/scripts \
+  grafana/k6 run --secret-source=file=/scripts/secrets.file /scripts/script.js
+```
+
+In the Docker example, replace `<SCRIPT_DIR>` with the absolute path to the directory that contains your script and secrets file.

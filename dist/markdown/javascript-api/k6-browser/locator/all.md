@@ -1,0 +1,45 @@
+
+# all()
+
+When multiple elements match the selector, returns an array of Locator, each pointing to their respective element.
+
+### Returns
+
+| Type                                                                                   | Description                                              |
+| -------------------------------------------------------------------------------------- | -------------------------------------------------------- |
+| Array<Locator> | An array of `Locator`. |
+
+### Example
+
+```javascript
+import { browser } from 'k6/browser';
+
+export const options = {
+  scenarios: {
+    ui: {
+      executor: 'shared-iterations',
+      options: {
+        browser: {
+          type: 'chromium',
+        },
+      },
+    },
+  },
+};
+
+export default async function () {
+  const page = await browser.newPage();
+  await page.goto('https://quickpizza.grafana.com/browser.php');
+
+  const options = await page.locator('#numbers-options > option').all();
+  console.log(`Found ${options.length} options.`);
+  
+  for (const option of options) {
+    console.log('Inner text: ', await option.innerText());
+    await option.click();
+  }
+
+  await page.close();
+}
+```
+

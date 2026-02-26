@@ -1,0 +1,27 @@
+
+# stat
+
+The `stat` method returns a promise resolving to a FileInfo object with information about the file.
+
+## Returns
+
+A [Promise](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Promise) resolving to a FileInfo object with information about the file.
+
+## Examples
+
+```javascript
+import { open, SeekMode } from 'k6/experimental/fs';
+
+const file = await open('bonjour.txt');
+
+export default async function () {
+  // About information about the file
+  const fileinfo = await file.stat();
+  if (fileinfo.name != 'bonjour.txt') {
+    throw new Error('Unexpected file name');
+  }
+
+  console.log(JSON.stringify(fileinfo));
+}
+```
+
