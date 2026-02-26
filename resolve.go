@@ -29,5 +29,6 @@ func Resolve(args []string) string {
 	}
 
 	// Rule 3: JS API module shortcut → prepend "javascript-api/k6-".
+	args[0] = strings.TrimPrefix(args[0], "k6-")
 	return "javascript-api/k6-" + strings.Join(args, "/")
 }
