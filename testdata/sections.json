@@ -70,6 +70,26 @@
       "category": "results",
       "children": [],
       "is_index": true
+    },
+    {
+      "slug": "browser/closecontext",
+      "rel_path": "browser/closecontext.md",
+      "title": "closeContext",
+      "description": "Close a browser context.",
+      "weight": 1,
+      "category": "browser",
+      "children": [],
+      "is_index": false
+    },
+    {
+      "slug": "http-debugging",
+      "rel_path": "protocols/http-debugging.md",
+      "title": "HTTP Debugging",
+      "description": "Debug HTTP requests and responses.",
+      "weight": 3,
+      "category": "protocols",
+      "children": [],
+      "is_index": false
     }
   ]
 }

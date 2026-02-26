@@ -54,30 +54,54 @@ func (idx *Index) Lookup(slug string) (*Section, bool) {
 	return sec, ok
 }
 
-// Search returns sections whose title, description, or body (via readContent)
+// normalize strips spaces and dashes, then lowercases the result.
+// This enables fuzzy matching where "close context", "close-context",
+// and "closecontext" all compare equal.
+func normalize(s string) string {
+	return strings.ToLower(strings.NewReplacer("-", "", " ", "").Replace(s))
+}
+
+// Search returns sections whose title, description, slug, or body (via readContent)
 // contain term as a case-insensitive substring. If readContent is nil, only
-// title and description are checked.
+// title, description, and slug are checked.
+//
+// In addition to exact case-insensitive matching, Search performs normalized
+// matching that ignores spaces and dashes so that e.g. "close context" matches
+// "closecontext".
 func (idx *Index) Search(term string, readContent func(slug string) string) []*Section {
 	if term == "" {
 		return nil
 	}
 
 	lower := strings.ToLower(term)
+	normTerm := normalize(term)
 	var results []*Section
 
 	for i := range idx.Sections {
 		sec := &idx.Sections[i]
 
+		// Exact case-insensitive match on title or description.
 		if strings.Contains(strings.ToLower(sec.Title), lower) ||
 			strings.Contains(strings.ToLower(sec.Description), lower) {
 			results = append(results, sec)
 			continue
 		}
 
+		// Normalized (fuzzy) match: ignore spaces and dashes.
+		if strings.Contains(normalize(sec.Title), normTerm) ||
+			strings.Contains(normalize(sec.Description), normTerm) ||
+			strings.Contains(normalize(sec.Slug), normTerm) {
+			results = append(results, sec)
+			continue
+		}
+
 		if readContent != nil {
 			body := readContent(sec.Slug)
-			if body != "" && strings.Contains(strings.ToLower(body), lower) {
-				results = append(results, sec)
+			if body != "" {
+				if strings.Contains(strings.ToLower(body), lower) ||
+					strings.Contains(normalize(body), normTerm) {
+					results = append(results, sec)
+				}
 			}
 		}
 	}
