@@ -21,6 +21,14 @@ func childName(childSlug, parentSlug string) string {
 	return childSlug
 }
 
+// truncate shortens s to max characters, appending "..." if truncated.
+func truncate(s string, max int) string {
+	if len(s) <= max {
+		return s
+	}
+	return s[:max-3] + "..."
+}
+
 // printTOC prints the table of contents grouped by category.
 func printTOC(w io.Writer, idx *Index, version string) {
 	fmt.Fprintf(w, "k6 Documentation (%s)\n", version)
@@ -34,13 +42,13 @@ func printTOC(w io.Writer, idx *Index, version string) {
 		children := idx.Children(cat.Slug)
 		if len(children) == 0 {
 			// Show the category itself if it has no children.
-			fmt.Fprintf(w, "  %-20s %s\n", childName(cat.Slug, ""), cat.Description)
+			fmt.Fprintf(w, "  %-20s %s\n", childName(cat.Slug, ""), truncate(cat.Description, 80))
 			continue
 		}
 
 		for _, child := range children {
 			name := childName(child.Slug, cat.Slug)
-			fmt.Fprintf(w, "  %-20s %s\n", name, child.Description)
+			fmt.Fprintf(w, "  %-20s %s\n", name, truncate(child.Description, 80))
 		}
 	}
 }
@@ -94,7 +102,7 @@ func printList(w io.Writer, idx *Index, slug string) {
 
 	for _, child := range children {
 		name := childName(child.Slug, slug)
-		fmt.Fprintf(w, "  %-20s %s\n", name, child.Description)
+		fmt.Fprintf(w, "  %-20s %s\n", name, truncate(child.Description, 80))
 	}
 }
 
@@ -119,7 +127,7 @@ func printSearch(w io.Writer, idx *Index, term, cacheDir string) {
 
 	for _, sec := range results {
 		name := childName(sec.Slug, "")
-		fmt.Fprintf(w, "  %-20s %s\n", name, sec.Description)
+		fmt.Fprintf(w, "  %-20s %s\n", name, truncate(sec.Description, 80))
 	}
 }
 
