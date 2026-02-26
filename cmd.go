@@ -1,9 +1,12 @@
 package docs
 
 import (
+	"bytes"
 	"fmt"
+	"io"
 	"net/http"
 	"os"
+	"os/exec"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -30,34 +33,50 @@ func newCmd(gs *state.GlobalState) *cobra.Command {
 				return err
 			}
 
+			isTTY := term.IsTerminal(int(os.Stdout.Fd()))
 			if gs != nil {
-				if term.IsTerminal(int(os.Stdout.Fd())) {
+				if isTTY {
 					gs.Logger.Debug("docs: interactive mode (stdout is TTY)")
 				} else {
 					gs.Logger.Debug("docs: agent mode (stdout is not a TTY)")
 				}
 			}
 
-			w := cmd.OutOrStdout()
+			cfg, cfgErr := loadConfig()
+			if cfgErr != nil && gs != nil {
+				gs.Logger.Warnf("docs: ignoring invalid config: %v", cfgErr)
+			}
+
+			baseW := cmd.OutOrStdout()
+			var buf *bytes.Buffer
+			var w io.Writer = baseW
+
+			if cfg.Renderer != "" && isTTY {
+				buf = &bytes.Buffer{}
+				w = buf
+			}
 
 			if allFlag {
 				printAll(w, idx, cacheDir, version)
-				return nil
+				return pipeRenderer(buf, baseW, cfg.Renderer)
 			}
 
 			if listFlag && len(args) == 0 {
 				printTopLevelList(w, idx)
-				return nil
+				return pipeRenderer(buf, baseW, cfg.Renderer)
 			}
 
 			if len(args) == 0 {
 				printTOC(w, idx, version)
-				return nil
+				return pipeRenderer(buf, baseW, cfg.Renderer)
 			}
 
 			// Special case: "best-practices" as first arg.
 			if args[0] == "best-practices" {
-				return printBestPractices(w, cacheDir)
+				if err := printBestPractices(w, cacheDir); err != nil {
+					return err
+				}
+				return pipeRenderer(buf, baseW, cfg.Renderer)
 			}
 
 			slug := Resolve(args)
@@ -69,11 +88,11 @@ func newCmd(gs *state.GlobalState) *cobra.Command {
 
 			if listFlag {
 				printList(w, idx, slug)
-				return nil
+				return pipeRenderer(buf, baseW, cfg.Renderer)
 			}
 
 			printSection(w, idx, sec, cacheDir, version)
-			return nil
+			return pipeRenderer(buf, baseW, cfg.Renderer)
 		},
 	}
 
@@ -100,6 +119,34 @@ func newCmd(gs *state.GlobalState) *cobra.Command {
 	cmd.AddCommand(searchCmd)
 
 	return cmd
+}
+
+// pipeRenderer sends the buffered output through the configured renderer command.
+// If buf is nil (no renderer configured or stdout is not a TTY), it's a no-op.
+// If the renderer command fails, the raw output is written to fallback as-is.
+func pipeRenderer(buf *bytes.Buffer, fallback io.Writer, renderer string) error {
+	if buf == nil || buf.Len() == 0 {
+		return nil
+	}
+
+	parts := strings.Fields(renderer)
+	if len(parts) == 0 {
+		_, err := fallback.Write(buf.Bytes())
+		return err
+	}
+
+	rc := exec.Command(parts[0], parts[1:]...) //nolint:gosec // user-configured renderer
+	rc.Stdin = buf
+	rc.Stdout = fallback
+	rc.Stderr = os.Stderr
+
+	if err := rc.Run(); err != nil {
+		// Renderer failed — fall back to raw output.
+		_, writeErr := fallback.Write(buf.Bytes())
+		return writeErr
+	}
+
+	return nil
 }
 
 // setup resolves the version, ensures docs are cached, and loads the index.
