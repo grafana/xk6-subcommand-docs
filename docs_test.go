@@ -149,28 +149,33 @@ func setupTestCache(t *testing.T) (string, *Index) {
 	return dir, idx
 }
 
-func TestSlugToShortArgs(t *testing.T) {
+func TestChildName(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		slug string
-		want string
+		childSlug  string
+		parentSlug string
+		want       string
 	}{
-		{"javascript-api/k6-http/get", "http get"},
-		{"javascript-api/k6-browser/page/click", "browser page click"},
-		{"javascript-api/k6-metrics", "metrics"},
-		{"using-k6/scenarios", "using-k6 scenarios"},
-		{"examples/websockets", "examples websockets"},
-		{"javascript-api", "javascript-api"},
-		{"", ""},
+		{"javascript-api/k6-http", "javascript-api", "k6-http"},
+		{"javascript-api/k6-http/get", "javascript-api/k6-http", "get"},
+		{"javascript-api/k6-http/post", "javascript-api/k6-http", "post"},
+		{"using-k6/scenarios", "using-k6", "scenarios"},
+		{"examples/websockets", "examples", "websockets"},
+		// When parent doesn't match as prefix, fall back to last segment.
+		{"javascript-api/k6-http/get", "", "get"},
+		{"using-k6/scenarios", "other", "scenarios"},
+		// No slash at all returns the slug itself.
+		{"toplevel", "", "toplevel"},
+		{"toplevel", "other", "toplevel"},
 	}
 
 	for _, tt := range tests {
-		t.Run(tt.slug, func(t *testing.T) {
+		t.Run(tt.childSlug+"_parent_"+tt.parentSlug, func(t *testing.T) {
 			t.Parallel()
-			got := slugToShortArgs(tt.slug)
+			got := childName(tt.childSlug, tt.parentSlug)
 			if got != tt.want {
-				t.Errorf("slugToShortArgs(%q) = %q, want %q", tt.slug, got, tt.want)
+				t.Errorf("childName(%q, %q) = %q, want %q", tt.childSlug, tt.parentSlug, got, tt.want)
 			}
 		})
 	}
@@ -202,9 +207,9 @@ func TestPrintTOC(t *testing.T) {
 		t.Error("printTOC: missing Examples category")
 	}
 
-	// Check children listed under JavaScript API use short names.
-	if !strings.Contains(out, "http") {
-		t.Error("printTOC: missing 'http' short name under JavaScript API")
+	// Check children listed under JavaScript API use child names (relative to parent).
+	if !strings.Contains(out, "k6-http") {
+		t.Error("printTOC: missing 'k6-http' child name under JavaScript API")
 	}
 }
 
@@ -233,13 +238,13 @@ func TestPrintSection(t *testing.T) {
 		if !strings.Contains(out, "Subtopics:") {
 			t.Error("printSection: missing Subtopics line")
 		}
-		if !strings.Contains(out, "http get") {
-			t.Error("printSection: missing 'http get' in subtopics")
+		if !strings.Contains(out, "get") {
+			t.Error("printSection: missing 'get' in subtopics")
 		}
-		if !strings.Contains(out, "http post") {
-			t.Error("printSection: missing 'http post' in subtopics")
+		if !strings.Contains(out, "post") {
+			t.Error("printSection: missing 'post' in subtopics")
 		}
-		if !strings.Contains(out, "Use: k6 x docs http <subtopic>") {
+		if !strings.Contains(out, "Use: k6 x docs k6-http <subtopic>") {
 			t.Error("printSection: missing usage hint")
 		}
 	})
@@ -277,11 +282,11 @@ func TestPrintList(t *testing.T) {
 		if !strings.Contains(out, "HTTP module for k6.") {
 			t.Error("printList: missing section description")
 		}
-		if !strings.Contains(out, "http get") {
-			t.Error("printList: missing child 'http get'")
+		if !strings.Contains(out, "get") {
+			t.Error("printList: missing child 'get'")
 		}
-		if !strings.Contains(out, "http post") {
-			t.Error("printList: missing child 'http post'")
+		if !strings.Contains(out, "post") {
+			t.Error("printList: missing child 'post'")
 		}
 	})
 
@@ -320,8 +325,8 @@ func TestPrintSearch(t *testing.T) {
 		if !strings.Contains(out, `Results for "Scenarios"`) {
 			t.Error("printSearch: missing results header")
 		}
-		if !strings.Contains(out, "using-k6 scenarios") {
-			t.Error("printSearch: missing result 'using-k6 scenarios'")
+		if !strings.Contains(out, "scenarios") {
+			t.Error("printSearch: missing result 'scenarios'")
 		}
 	})
 
@@ -330,8 +335,8 @@ func TestPrintSearch(t *testing.T) {
 		printSearch(&buf, idx, "GET request", cacheDir)
 		out := buf.String()
 
-		if !strings.Contains(out, "http get") {
-			t.Error("printSearch: missing result 'http get'")
+		if !strings.Contains(out, "get") {
+			t.Error("printSearch: missing result 'get'")
 		}
 	})
 
@@ -340,7 +345,7 @@ func TestPrintSearch(t *testing.T) {
 		printSearch(&buf, idx, "WebSocket example content", cacheDir)
 		out := buf.String()
 
-		if !strings.Contains(out, "examples websockets") {
+		if !strings.Contains(out, "websockets") {
 			t.Error("printSearch: missing result from body match")
 		}
 	})
@@ -457,8 +462,8 @@ func TestCommandIntegration(t *testing.T) {
 		}
 
 		out := buf.String()
-		if !strings.Contains(out, "http get") {
-			t.Error("integration --list: missing 'http get'")
+		if !strings.Contains(out, "get") {
+			t.Error("integration --list: missing 'get'")
 		}
 	})
 
