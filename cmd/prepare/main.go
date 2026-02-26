@@ -164,7 +164,7 @@ func buildSharedContentMap(sharedDir string) (map[string]string, error) {
 		if err != nil {
 			return fmt.Errorf("read shared %s: %w", rel, err)
 		}
-		m[rel] = string(data)
+		m[filepath.ToSlash(rel)] = string(data)
 		return nil
 	})
 	return m, err
