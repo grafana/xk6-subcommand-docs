@@ -79,7 +79,10 @@ func newCmd(gs *state.GlobalState) *cobra.Command {
 				return pipeRenderer(buf, baseW, cfg.Renderer)
 			}
 
-			slug := Resolve(args)
+			slug := ResolveWithLookup(args, func(s string) bool {
+				_, ok := idx.Lookup(s)
+				return ok
+			})
 
 			sec, ok := idx.Lookup(slug)
 			if !ok {
