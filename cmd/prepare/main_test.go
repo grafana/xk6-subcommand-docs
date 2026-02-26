@@ -589,6 +589,11 @@ func TestParseFrontmatter(t *testing.T) {
 			content: "",
 			want:    frontmatter{},
 		},
+		{
+			name:    "duplicate keys keeps first",
+			content: "---\ntitle: 'First'\ndescription: 'First desc'\ndescription: 'Second desc'\nweight: 10\n---\n\n# Body",
+			want:    frontmatter{Title: "First", Description: "First desc", Weight: 10},
+		},
 	}
 
 	for _, tt := range tests {
@@ -600,6 +605,47 @@ func TestParseFrontmatter(t *testing.T) {
 			}
 			if got != tt.want {
 				t.Errorf("got %+v, want %+v", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestDeduplicateYAMLKeys(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name  string
+		input string
+		want  string
+	}{
+		{
+			name:  "no duplicates",
+			input: "title: 'Hello'\ndescription: 'World'\nweight: 1",
+			want:  "title: 'Hello'\ndescription: 'World'\nweight: 1",
+		},
+		{
+			name:  "duplicate description",
+			input: "title: 'Hello'\ndescription: 'First'\ndescription: 'Second'\nweight: 1",
+			want:  "title: 'Hello'\ndescription: 'First'\nweight: 1",
+		},
+		{
+			name:  "preserves indented lines",
+			input: "title: 'Hello'\naliases:\n  - /old\n  - /older\ntitle: 'Duplicate'",
+			want:  "title: 'Hello'\naliases:\n  - /old\n  - /older",
+		},
+		{
+			name:  "preserves comments",
+			input: "# comment\ntitle: 'Hello'\ntitle: 'Dup'",
+			want:  "# comment\ntitle: 'Hello'",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			got := deduplicateYAMLKeys(tt.input)
+			if got != tt.want {
+				t.Errorf("deduplicateYAMLKeys():\ngot:  %q\nwant: %q", got, tt.want)
 			}
 		})
 	}
