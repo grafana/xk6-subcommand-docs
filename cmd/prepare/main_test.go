@@ -764,7 +764,10 @@ func TestSlugCollisionPrefersIndex(t *testing.T) {
 }
 
 func TestRunWithRealDocs(t *testing.T) {
-	k6DocsPath := "/Users/inanc/grafana/k6-docs"
+	k6DocsPath := os.Getenv("K6_DOCS_PATH")
+	if k6DocsPath == "" {
+		k6DocsPath = filepath.Join(os.Getenv("HOME"), "grafana", "k6-docs")
+	}
 	if _, err := os.Stat(k6DocsPath); err != nil {
 		t.Skipf("skipping integration test: k6-docs not found at %s", k6DocsPath)
 	}
