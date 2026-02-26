@@ -204,11 +204,30 @@ func parseFrontmatter(content string) (frontmatter, error) {
 	if end == -1 {
 		return fm, nil
 	}
-	yamlBlock := content[4 : 4+end]
+	yamlBlock := deduplicateYAMLKeys(content[4 : 4+end])
 	if err := yaml.Unmarshal([]byte(yamlBlock), &fm); err != nil {
 		return fm, fmt.Errorf("parse yaml: %w", err)
 	}
 	return fm, nil
+}
+
+// deduplicateYAMLKeys removes duplicate top-level YAML keys, keeping only
+// the first occurrence of each key. This handles the ~60 k6-docs files that
+// have duplicate "description:" keys, which cause yaml.v3 to error.
+func deduplicateYAMLKeys(yamlBlock string) string {
+	seen := make(map[string]bool)
+	var lines []string
+	for _, line := range strings.Split(yamlBlock, "\n") {
+		if idx := strings.Index(line, ":"); idx > 0 && len(line) > 0 && line[0] != ' ' && line[0] != '\t' && line[0] != '#' {
+			key := strings.TrimSpace(line[:idx])
+			if seen[key] {
+				continue
+			}
+			seen[key] = true
+		}
+		lines = append(lines, line)
+	}
+	return strings.Join(lines, "\n")
 }
 
 // slugFromRelPath derives the slug from a relative path.
