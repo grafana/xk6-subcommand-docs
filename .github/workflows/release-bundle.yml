@@ -1,0 +1,36 @@
+name: Release Doc Bundle
+
+on:
+  repository_dispatch:
+    types: [k6-release]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'k6 version (e.g., v1.5.x)'
+        required: true
+
+jobs:
+  build-bundle:
+    runs-on: ubuntu-latest
+    env:
+      VERSION: ${{ github.event.client_payload.version || github.event.inputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - name: Clone k6-docs
+        run: git clone --depth 1 https://github.com/grafana/k6-docs.git /tmp/k6-docs
+      - name: Prepare docs
+        run: go run ./cmd/prepare --k6-version=${{ env.VERSION }} --k6-docs-path=/tmp/k6-docs --output-dir=dist
+      - name: Compress bundle
+        run: |
+          apt-get update && apt-get install -y zstd
+          tar -cf - -C dist . | zstd --ultra -22 -o docs-${{ env.VERSION }}.tar.zst
+      - name: Publish release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: docs-${{ env.VERSION }}
+          name: "Docs bundle for k6 ${{ env.VERSION }}"
+          files: docs-${{ env.VERSION }}.tar.zst
+          body: "Auto-generated documentation bundle for k6 ${{ env.VERSION }}"
