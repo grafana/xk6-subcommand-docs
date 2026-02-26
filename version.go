@@ -16,19 +16,19 @@ func detectK6Version(readBuildInfo func() (*debug.BuildInfo, bool)) (string, err
 
 	for _, dep := range info.Deps {
 		if dep.Path == "go.k6.io/k6" {
-			return mapToWildcard(dep.Version), nil
+			return MapToWildcard(dep.Version), nil
 		}
 	}
 
 	return "", errors.New("go.k6.io/k6 dependency not found in build info")
 }
 
-// mapToWildcard converts a semver version to a wildcard patch version.
+// MapToWildcard converts a semver version to a wildcard patch version.
 // "v1.5.0" becomes "v1.5.x", "v0.55.2-rc.1" becomes "v0.55.x".
 // Pre-release suffixes and build metadata are stripped.
 // If the version doesn't contain at least two dots (major.minor.patch),
 // it is returned as-is.
-func mapToWildcard(version string) string {
+func MapToWildcard(version string) string {
 	if version == "" {
 		return ""
 	}
