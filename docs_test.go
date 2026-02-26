@@ -112,17 +112,17 @@ func setupTestCache(t *testing.T) (string, *Index) {
 		t.Fatalf("write sections.json: %v", err)
 	}
 
-	// Create markdown files. Content includes H1 headings after frontmatter
-	// to match how the prepare command generates cached content.
+	// Create markdown files. Content is pre-transformed (no frontmatter),
+	// matching how the prepare command generates cached content.
 	mdFiles := map[string]string{
-		"javascript-api/_index.md":          "---\ntitle: JavaScript API\n---\n# JavaScript API\n\nThe JavaScript API reference.\n",
-		"javascript-api/k6-http/_index.md":  "---\ntitle: k6/http\n---\n# k6/http\n\nThe HTTP module.\n",
-		"javascript-api/k6-http/get.md":     "---\ntitle: get\n---\n## http.get(url)\n\nMake a GET request.\n",
-		"javascript-api/k6-http/post.md":    "---\ntitle: post\n---\n## http.post(url, body)\n\nMake a POST request.\n",
-		"using-k6/_index.md":                "---\ntitle: Using k6\n---\n# Using k6\n\nGuide to using k6.\n",
-		"using-k6/scenarios.md":             "---\ntitle: Scenarios\n---\n# Scenarios\n\nScenarios let you configure execution.\n",
-		"examples/_index.md":                "---\ntitle: Examples\n---\n# Examples\n\nExample scripts.\n",
-		"examples/websockets.md":            "---\ntitle: WebSockets\n---\n# WebSockets\n\nWebSocket example content.\n",
+		"javascript-api/_index.md":          "# JavaScript API\n\nThe JavaScript API reference.\n",
+		"javascript-api/k6-http/_index.md":  "# k6/http\n\nThe HTTP module.\n",
+		"javascript-api/k6-http/get.md":     "## http.get(url)\n\nMake a GET request.\n",
+		"javascript-api/k6-http/post.md":    "## http.post(url, body)\n\nMake a POST request.\n",
+		"using-k6/_index.md":                "# Using k6\n\nGuide to using k6.\n",
+		"using-k6/scenarios.md":             "# Scenarios\n\nScenarios let you configure execution.\n",
+		"examples/_index.md":                "# Examples\n\nExample scripts.\n",
+		"examples/websockets.md":            "# WebSockets\n\nWebSocket example content.\n",
 	}
 
 	for relPath, content := range mdFiles {
