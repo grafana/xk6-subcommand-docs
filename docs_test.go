@@ -122,7 +122,6 @@ func setupTestCache(t *testing.T) (string, *Index) {
 		"using-k6/scenarios.md":             "---\ntitle: Scenarios\n---\nScenarios let you configure execution.\n",
 		"examples/_index.md":                "---\ntitle: Examples\n---\nExample scripts.\n",
 		"examples/websockets.md":            "---\ntitle: WebSockets\n---\nWebSocket example content.\n",
-		"best_practices.md":                 "---\ntitle: Best Practices\n---\nFollow these best practices for k6.\n",
 	}
 
 	for relPath, content := range mdFiles {
@@ -133,6 +132,12 @@ func setupTestCache(t *testing.T) (string, *Index) {
 		if err := os.WriteFile(fullPath, []byte(content), 0o644); err != nil {
 			t.Fatalf("write %s: %v", fullPath, err)
 		}
+	}
+
+	// best_practices.md lives at the cache root (same as cmd/prepare output).
+	bpPath := filepath.Join(dir, "best_practices.md")
+	if err := os.WriteFile(bpPath, []byte("---\ntitle: Best Practices\n---\nFollow these best practices for k6.\n"), 0o644); err != nil {
+		t.Fatalf("write best_practices.md: %v", err)
 	}
 
 	// Reload from disk so bySlug map is built.
