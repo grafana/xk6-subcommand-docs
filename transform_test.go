@@ -306,10 +306,10 @@ func TestTransform_ReplaceVersion(t *testing.T) {
 			want:    "Visit https://grafana.com/docs/k6/v1.5.x/extensions/explore for extensions.",
 		},
 		{
-			name:    "replace version in external link (kept as link)",
+			name:    "replace version in external link then strip to text",
 			content: "[extensions](https://grafana.com/docs/k6/<K6_VERSION>/extensions/explore)",
 			version: "v1.5.x",
-			want:    "[extensions](https://grafana.com/docs/k6/v1.5.x/extensions/explore)",
+			want:    "extensions",
 		},
 	}
 
@@ -354,19 +354,19 @@ func TestTransform_ConvertInternalLinks(t *testing.T) {
 			want:    "scenarios",
 		},
 		{
-			name:    "external link to extensions keeps URL",
+			name:    "excluded category link stripped to text",
 			content: "[Build a k6 binary](https://grafana.com/docs/k6/v1.5.x/extensions/build-k6-binary-using-go)",
-			want:    "[Build a k6 binary](https://grafana.com/docs/k6/v1.5.x/extensions/build-k6-binary-using-go)",
+			want:    "Build a k6 binary",
 		},
 		{
-			name:    "external link to get-started keeps URL",
+			name:    "get-started link stripped to text",
 			content: "[Install k6](https://grafana.com/docs/k6/v1.5.x/get-started/installation/)",
-			want:    "[Install k6](https://grafana.com/docs/k6/v1.5.x/get-started/installation/)",
+			want:    "Install k6",
 		},
 		{
-			name:    "external link to set-up keeps URL",
+			name:    "set-up link stripped to text",
 			content: "[Set up](https://grafana.com/docs/k6/v1.5.x/set-up/something)",
-			want:    "[Set up](https://grafana.com/docs/k6/v1.5.x/set-up/something)",
+			want:    "Set up",
 		},
 		{
 			name:    "multiple links in one line",
@@ -384,9 +384,9 @@ func TestTransform_ConvertInternalLinks(t *testing.T) {
 			want:    "check(selector[, options])",
 		},
 		{
-			name:    "non-grafana link left alone",
+			name:    "non-grafana link also stripped to text",
 			content: "[example](https://example.com/something)",
-			want:    "[example](https://example.com/something)",
+			want:    "example",
 		},
 		{
 			name:    "all included categories become plain text",
@@ -400,6 +400,63 @@ func TestTransform_ConvertInternalLinks(t *testing.T) {
 			t.Parallel()
 
 			got := Transform(tt.content, "v1.5.x", nil)
+			if got != tt.want {
+				t.Errorf("got: %q, want: %q", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestTransform_StripMarkdownLinks(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		content string
+		want    string
+	}{
+		{
+			name:    "simple link",
+			content: "[jslib](https://example.com)",
+			want:    "jslib",
+		},
+		{
+			name:    "link with path",
+			content: "[aws](https://example.com/aws)",
+			want:    "aws",
+		},
+		{
+			name:    "link inline with text",
+			content: "text with [a link](http://example.com) in it",
+			want:    "text with a link in it",
+		},
+		{
+			name:    "image link stripped to alt text",
+			content: "![image](http://example.com/img.png)",
+			want:    "image",
+		},
+		{
+			name:    "nested brackets handled gracefully",
+			content: "[nested [brackets]](http://example.com)",
+			want:    "nested [brackets]",
+		},
+		{
+			name:    "multiple links in one line",
+			content: "[foo](http://a.com) and [bar](http://b.com)",
+			want:    "foo and bar",
+		},
+		{
+			name:    "bare brackets not touched",
+			content: "[not a link] just text",
+			want:    "[not a link] just text",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			got := Transform(tt.content, "v1.0.0", nil)
 			if got != tt.want {
 				t.Errorf("got: %q, want: %q", got, tt.want)
 			}
