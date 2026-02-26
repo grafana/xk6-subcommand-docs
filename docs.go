@@ -75,12 +75,12 @@ func printTOC(w io.Writer, idx *Index, version string) {
 	topLevel := idx.TopLevel()
 
 	for _, cat := range topLevel {
-		fmt.Fprintf(w, "\n## %s\n", cat.Title)
+		fmt.Fprintf(w, "\n## %s\n\n", cat.Title)
 
 		children := idx.Children(cat.Slug)
 		if len(children) == 0 {
 			// Show the category itself if it has no children.
-			fmt.Fprintf(w, "  %s %s\n", childName(cat.Slug, ""), truncate(cat.Description, 80))
+			fmt.Fprintf(w, "- %s %s\n", childName(cat.Slug, ""), truncate(cat.Description, 80))
 			continue
 		}
 
@@ -91,8 +91,8 @@ func printTOC(w io.Writer, idx *Index, version string) {
 				Description: child.Description,
 			})
 		}
-		printAlignedList(w, items, "  ")
-		fmt.Fprintf(w, "\n  → k6 x docs %s <topic>\n", cat.Slug)
+		printAlignedList(w, items, "- ")
+		fmt.Fprintf(w, "\n  → Usage: k6 x docs %s <topic>\n", cat.Slug)
 	}
 }
 
@@ -149,7 +149,7 @@ func printList(w io.Writer, idx *Index, slug string) {
 			Description: child.Description,
 		})
 	}
-	printAlignedList(w, items, "  ")
+	printAlignedList(w, items, "- ")
 }
 
 // printTopLevelList lists all top-level categories with their descriptions.
@@ -163,7 +163,7 @@ func printTopLevelList(w io.Writer, idx *Index) {
 			Description: cat.Description,
 		})
 	}
-	printAlignedList(w, items, "  ")
+	printAlignedList(w, items, "- ")
 }
 
 // searchGroupKey returns the grouping key for a search result.
@@ -257,7 +257,7 @@ func printSearch(w io.Writer, idx *Index, term, cacheDir string) {
 				Description: sec.Description,
 			})
 		}
-		printAlignedList(w, items, "  ")
+		printAlignedList(w, items, "- ")
 
 		fmt.Fprintln(w)
 	}

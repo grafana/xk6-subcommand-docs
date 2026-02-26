@@ -150,7 +150,7 @@ func setupTestCache(t *testing.T) (string, *Index) {
 	return dir, idx
 }
 
-// checkAlignment verifies that all indented listing lines (starting with "  ")
+// checkAlignment verifies that all listing lines (starting with "- " or "  ")
 // in the given output have their descriptions starting at the same column.
 // It returns the column index and true if aligned, or 0 and false if not.
 func checkAlignment(t *testing.T, label, output string) {
@@ -159,10 +159,15 @@ func checkAlignment(t *testing.T, label, output string) {
 	lines := strings.Split(output, "\n")
 	col := -1
 	for _, line := range lines {
-		if !strings.HasPrefix(line, "  ") {
+		var trimmed string
+		switch {
+		case strings.HasPrefix(line, "- "):
+			trimmed = strings.TrimPrefix(line, "- ")
+		case strings.HasPrefix(line, "  "):
+			trimmed = strings.TrimPrefix(line, "  ")
+		default:
 			continue
 		}
-		trimmed := strings.TrimPrefix(line, "  ")
 		// Skip lines like "(no subtopics)" or usage hints ("→ ...") that aren't name+description pairs.
 		if strings.HasPrefix(trimmed, "(") || strings.HasPrefix(trimmed, "→") {
 			continue
@@ -360,13 +365,13 @@ func TestPrintTOC(t *testing.T) {
 	}
 
 	// Check usage hint lines after each category's children.
-	if !strings.Contains(out, "→ k6 x docs javascript-api <topic>") {
+	if !strings.Contains(out, "→ Usage: k6 x docs javascript-api <topic>") {
 		t.Error("printTOC: missing usage hint for javascript-api")
 	}
-	if !strings.Contains(out, "→ k6 x docs using-k6 <topic>") {
+	if !strings.Contains(out, "→ Usage: k6 x docs using-k6 <topic>") {
 		t.Error("printTOC: missing usage hint for using-k6")
 	}
-	if !strings.Contains(out, "→ k6 x docs examples <topic>") {
+	if !strings.Contains(out, "→ Usage: k6 x docs examples <topic>") {
 		t.Error("printTOC: missing usage hint for examples")
 	}
 
@@ -614,10 +619,15 @@ func TestDynamicAlignment(t *testing.T) {
 	lines := strings.Split(out, "\n")
 	var descStarts []int
 	for _, line := range lines {
-		if !strings.HasPrefix(line, "  ") {
+		var trimmed string
+		switch {
+		case strings.HasPrefix(line, "- "):
+			trimmed = strings.TrimPrefix(line, "- ")
+		case strings.HasPrefix(line, "  "):
+			trimmed = strings.TrimPrefix(line, "  ")
+		default:
 			continue
 		}
-		trimmed := strings.TrimPrefix(line, "  ")
 		if strings.HasPrefix(trimmed, "(") {
 			continue
 		}
