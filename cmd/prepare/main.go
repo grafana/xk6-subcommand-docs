@@ -72,7 +72,10 @@ func run(k6Version, k6DocsPath, outputDir string) error {
 		defer cleanup()
 	}
 
-	versionRoot := filepath.Join(docsPath, "docs", "sources", "k6", k6Version)
+	// The k6-docs repo uses wildcard directories (e.g. "v1.6.x"), so convert
+	// exact versions like "v1.6.1" to the wildcard form for the path lookup.
+	docsVersion := docs.MapToWildcard(k6Version)
+	versionRoot := filepath.Join(docsPath, "docs", "sources", "k6", docsVersion)
 	if _, err := os.Stat(versionRoot); err != nil {
 		return fmt.Errorf("version root not found: %w", err)
 	}

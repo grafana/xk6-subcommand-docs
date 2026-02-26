@@ -30,9 +30,9 @@ func TestMapToWildcard(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			got := mapToWildcard(tt.version)
+			got := MapToWildcard(tt.version)
 			if got != tt.want {
-				t.Errorf("mapToWildcard(%q) = %q, want %q", tt.version, got, tt.want)
+				t.Errorf("MapToWildcard(%q) = %q, want %q", tt.version, got, tt.want)
 			}
 		})
 	}

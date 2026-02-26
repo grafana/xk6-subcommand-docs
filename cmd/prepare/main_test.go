@@ -770,3 +770,36 @@ func TestMissingVersion(t *testing.T) {
 		t.Errorf("error = %q, expected to mention 'version root not found'", err.Error())
 	}
 }
+
+func TestRunWithExactVersion(t *testing.T) {
+	t.Parallel()
+
+	// The docs directory uses the wildcard form v0.99.x, but the caller
+	// passes an exact version like v0.99.3. The run function must map the
+	// exact version to the wildcard directory automatically.
+	docsPath := setupMockDocs(t, "v0.99.x")
+	outputDir := filepath.Join(t.TempDir(), "output")
+
+	if err := run("v0.99.3", docsPath, outputDir); err != nil {
+		t.Fatalf("run with exact version: %v", err)
+	}
+
+	// The index should preserve the original exact version.
+	data, err := os.ReadFile(filepath.Join(outputDir, "sections.json"))
+	if err != nil {
+		t.Fatalf("read sections.json: %v", err)
+	}
+
+	var idx docs.Index
+	if err := json.Unmarshal(data, &idx); err != nil {
+		t.Fatalf("parse sections.json: %v", err)
+	}
+
+	if idx.Version != "v0.99.3" {
+		t.Errorf("Version = %q, want %q (exact version should be preserved)", idx.Version, "v0.99.3")
+	}
+
+	if len(idx.Sections) == 0 {
+		t.Error("expected sections to be populated")
+	}
+}
