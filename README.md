@@ -78,7 +78,7 @@ Why not embed? xk6 has no build-time version detection mechanism, and embedding 
 
 ## How CI auto-publishes bundles
 
-Doc bundles are published as GitHub releases through two triggers:
+Docs are published as GitHub releases through two triggers:
 
 - **Primary:** `repository_dispatch` from k6's release workflow
 - **Fallback:** Scheduled poll (disabled by default)

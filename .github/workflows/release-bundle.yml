@@ -41,7 +41,7 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           tag_name: doc-bundles
-          name: "Doc bundles"
+          name: "Docs"
           make_latest: false
           files: docs-${{ steps.version.outputs.wildcard }}.tar.zst
-          body: "Auto-generated documentation bundles for k6"
+          body: "This is not a release. It contains k6 documentation bundles."
