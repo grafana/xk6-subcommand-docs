@@ -11,6 +11,8 @@ var (
 	reAdmonition   = regexp.MustCompile(`(?s)\{\{<\s*admonition\s+type="([^"]+)"\s*>\}\}\s*\n(.*?)\n\s*\{\{<\s*/admonition\s*>\}\}`)
 	reSection      = regexp.MustCompile(`\{\{<\s*/?\s*section\b[^>]*>\}\}`)
 	reAnyShortcode = regexp.MustCompile(`\{\{<\s*/?\s*[^>]+>\}\}`)
+	reComponentTag = regexp.MustCompile(`</?[A-Z][a-z][a-zA-Z]*[^>]*>`) // <Glossary>, </DescriptionList>, etc.
+	reBrTag        = regexp.MustCompile(`<br\s*/?>`)               // <br/>, <br />, <br>
 	reHTMLComment  = regexp.MustCompile(`<!--[\s\S]*?-->`)
 	reExtraNewline = regexp.MustCompile(`\n{3,}`)
 
@@ -40,6 +42,8 @@ var includedCategories = map[string]bool{
 //  3. Convert admonitions to blockquotes
 //  4. Strip section tags
 //  5. Strip remaining shortcodes
+//  5a. Strip React/MDX component tags (PascalCase)
+//  5b. Strip <br/> tags
 //  6. Replace <K6_VERSION> with version
 //  7. Convert internal docs links to plain text
 //  8. Strip HTML comments
@@ -100,6 +104,12 @@ func Transform(content, version string, sharedContent map[string]string) string 
 
 	// 5. Strip remaining shortcodes.
 	s = reAnyShortcode.ReplaceAllString(s, "")
+
+	// 5a. Strip React/MDX component tags (PascalCase like <Glossary>, <DescriptionList>).
+	s = reComponentTag.ReplaceAllString(s, "")
+
+	// 5b. Strip <br/> tags.
+	s = reBrTag.ReplaceAllString(s, "")
 
 	// 6. Replace version placeholder.
 	s = strings.ReplaceAll(s, "<K6_VERSION>", version)
