@@ -706,6 +706,63 @@ func TestPopulateChildren(t *testing.T) {
 	}
 }
 
+func TestSlugCollisionPrefersIndex(t *testing.T) {
+	t.Parallel()
+
+	version := "v0.99.x"
+	root := t.TempDir()
+	versionRoot := filepath.Join(root, "docs", "sources", "k6", version)
+
+	// Create a regular file and an _index.md that produce the same slug.
+	// javascript-api/k6-http/cookiejar.md  -> slug: javascript-api/k6-http/cookiejar
+	// javascript-api/k6-http/cookiejar/_index.md -> slug: javascript-api/k6-http/cookiejar
+	writeFile(t, filepath.Join(versionRoot, "_index.md"), "---\ntitle: root\n---\n")
+	writeFile(t, filepath.Join(versionRoot, "javascript-api", "_index.md"), "---\ntitle: 'JS API'\nweight: 1\n---\n")
+	writeFile(t, filepath.Join(versionRoot, "javascript-api", "k6-http", "_index.md"), "---\ntitle: 'k6/http'\nweight: 1\n---\n")
+	writeFile(t, filepath.Join(versionRoot, "javascript-api", "k6-http", "cookiejar.md"),
+		"---\ntitle: 'cookiejar function'\nweight: 10\n---\n\nA function.\n")
+	writeFile(t, filepath.Join(versionRoot, "javascript-api", "k6-http", "cookiejar", "_index.md"),
+		"---\ntitle: 'CookieJar class'\nweight: 20\n---\n\nA class with children.\n")
+	writeFile(t, filepath.Join(versionRoot, "javascript-api", "k6-http", "cookiejar", "set.md"),
+		"---\ntitle: 'set'\nweight: 1\n---\n\nSet a cookie.\n")
+
+	outputDir := filepath.Join(t.TempDir(), "output")
+	if err := run(version, root, outputDir); err != nil {
+		t.Fatalf("run: %v", err)
+	}
+
+	data, err := os.ReadFile(filepath.Join(outputDir, "sections.json"))
+	if err != nil {
+		t.Fatalf("read sections.json: %v", err)
+	}
+
+	var idx docs.Index
+	if err := json.Unmarshal(data, &idx); err != nil {
+		t.Fatalf("parse sections.json: %v", err)
+	}
+
+	// Count how many sections have the colliding slug.
+	slug := "javascript-api/k6-http/cookiejar"
+	var matches []docs.Section
+	for _, s := range idx.Sections {
+		if s.Slug == slug {
+			matches = append(matches, s)
+		}
+	}
+
+	if len(matches) != 1 {
+		t.Fatalf("expected exactly 1 section with slug %q, got %d", slug, len(matches))
+	}
+
+	// The _index.md version should win (it has children).
+	if !matches[0].IsIndex {
+		t.Errorf("expected the _index.md version to win the slug collision, got IsIndex=false")
+	}
+	if matches[0].Title != "CookieJar class" {
+		t.Errorf("Title = %q, want %q", matches[0].Title, "CookieJar class")
+	}
+}
+
 func TestRunWithRealDocs(t *testing.T) {
 	k6DocsPath := "/Users/inanc/grafana/k6-docs"
 	if _, err := os.Stat(k6DocsPath); err != nil {
