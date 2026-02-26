@@ -8,6 +8,7 @@ import (
 
 	"github.com/spf13/cobra"
 	"go.k6.io/k6/cmd/state"
+	"golang.org/x/term"
 )
 
 func newCmd(gs *state.GlobalState) *cobra.Command {
@@ -27,6 +28,14 @@ func newCmd(gs *state.GlobalState) *cobra.Command {
 			version, cacheDir, idx, err := setup(versionFlag, cacheDirFlg)
 			if err != nil {
 				return err
+			}
+
+			if gs != nil {
+				if term.IsTerminal(int(os.Stdout.Fd())) {
+					gs.Logger.Debug("docs: interactive mode (stdout is TTY)")
+				} else {
+					gs.Logger.Debug("docs: agent mode (stdout is not a TTY)")
+				}
 			}
 
 			w := cmd.OutOrStdout()
