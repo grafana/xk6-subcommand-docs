@@ -733,6 +733,100 @@ running (00m12.8s), 00/20 VUs
 	}
 }
 
+func TestTransform_StripComponentTags(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		content string
+		want    string
+	}{
+		{
+			name:    "Glossary wrapping text",
+			content: "See <Glossary>some text</Glossary> here.",
+			want:    "See some text here.",
+		},
+		{
+			name:    "DescriptionList open and close",
+			content: "Before\n<DescriptionList>\nItems\n</DescriptionList>\nAfter",
+			want:    "Before\n\nItems\n\nAfter",
+		},
+		{
+			name:    "LdScript self-closing style",
+			content: "Before\n<LdScript type=\"json\" />\nAfter",
+			want:    "Before\n\nAfter",
+		},
+		{
+			name:    "multiple PascalCase components",
+			content: "<Blockquote>hello</Blockquote> and <CodeGroup>world</CodeGroup>",
+			want:    "hello and world",
+		},
+		{
+			name:    "lowercase code tag NOT stripped",
+			content: "Use <code>foo</code> for inline code.",
+			want:    "Use <code>foo</code> for inline code.",
+		},
+		{
+			name:    "lowercase pre tag NOT stripped",
+			content: "<pre>formatted</pre>",
+			want:    "<pre>formatted</pre>",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			got := Transform(tt.content, "v1.0.0", nil)
+			if got != tt.want {
+				t.Errorf("got: %q, want: %q", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestTransform_StripBrTags(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		content string
+		want    string
+	}{
+		{
+			name:    "br self-closing no space",
+			content: "Line one<br/>Line two",
+			want:    "Line oneLine two",
+		},
+		{
+			name:    "br self-closing with space",
+			content: "Line one<br />Line two",
+			want:    "Line oneLine two",
+		},
+		{
+			name:    "br without slash",
+			content: "Line one<br>Line two",
+			want:    "Line oneLine two",
+		},
+		{
+			name:    "multiple br tags",
+			content: "A<br/>B<br />C<br>D",
+			want:    "ABCD",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			got := Transform(tt.content, "v1.0.0", nil)
+			if got != tt.want {
+				t.Errorf("got: %q, want: %q", got, tt.want)
+			}
+		})
+	}
+}
+
 func TestTransform_EmptyInput(t *testing.T) {
 	t.Parallel()
 
