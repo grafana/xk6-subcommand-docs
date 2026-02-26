@@ -300,16 +300,16 @@ func TestTransform_ReplaceVersion(t *testing.T) {
 		want    string
 	}{
 		{
-			name:    "replace version in URL",
-			content: "https://grafana.com/docs/k6/<K6_VERSION>/javascript-api/k6-http/get",
+			name:    "replace version in bare URL",
+			content: "Visit https://grafana.com/docs/k6/<K6_VERSION>/extensions/explore for extensions.",
 			version: "v1.5.x",
-			want:    "https://grafana.com/docs/k6/v1.5.x/javascript-api/k6-http/get",
+			want:    "Visit https://grafana.com/docs/k6/v1.5.x/extensions/explore for extensions.",
 		},
 		{
-			name:    "multiple version replacements",
-			content: "See [metrics](https://grafana.com/docs/k6/<K6_VERSION>/using-k6/metrics) and [checks](https://grafana.com/docs/k6/<K6_VERSION>/using-k6/checks).",
+			name:    "replace version in external link (kept as link)",
+			content: "[extensions](https://grafana.com/docs/k6/<K6_VERSION>/extensions/explore)",
 			version: "v1.5.x",
-			want:    "See [metrics](https://grafana.com/docs/k6/v1.5.x/using-k6/metrics) and [checks](https://grafana.com/docs/k6/v1.5.x/using-k6/checks).",
+			want:    "[extensions](https://grafana.com/docs/k6/v1.5.x/extensions/explore)",
 		},
 	}
 
@@ -318,6 +318,88 @@ func TestTransform_ReplaceVersion(t *testing.T) {
 			t.Parallel()
 
 			got := Transform(tt.content, tt.version, nil)
+			if got != tt.want {
+				t.Errorf("got: %q, want: %q", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestTransform_ConvertInternalLinks(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		content string
+		want    string
+	}{
+		{
+			name:    "internal JS API link becomes plain text",
+			content: "[batch( requests )](https://grafana.com/docs/k6/v1.5.x/javascript-api/k6-http/batch)",
+			want:    "batch( requests )",
+		},
+		{
+			name:    "internal using-k6 link becomes plain text",
+			content: "[thresholds](https://grafana.com/docs/k6/v1.5.x/using-k6/thresholds)",
+			want:    "thresholds",
+		},
+		{
+			name:    "internal link with anchor becomes plain text",
+			content: "[URL Grouping](https://grafana.com/docs/k6/v1.5.x/using-k6/http-requests#url-grouping)",
+			want:    "URL Grouping",
+		},
+		{
+			name:    "internal link with trailing slash becomes plain text",
+			content: "[scenarios](https://grafana.com/docs/k6/v1.5.x/using-k6/scenarios/)",
+			want:    "scenarios",
+		},
+		{
+			name:    "external link to extensions keeps URL",
+			content: "[Build a k6 binary](https://grafana.com/docs/k6/v1.5.x/extensions/build-k6-binary-using-go)",
+			want:    "[Build a k6 binary](https://grafana.com/docs/k6/v1.5.x/extensions/build-k6-binary-using-go)",
+		},
+		{
+			name:    "external link to get-started keeps URL",
+			content: "[Install k6](https://grafana.com/docs/k6/v1.5.x/get-started/installation/)",
+			want:    "[Install k6](https://grafana.com/docs/k6/v1.5.x/get-started/installation/)",
+		},
+		{
+			name:    "external link to set-up keeps URL",
+			content: "[Set up](https://grafana.com/docs/k6/v1.5.x/set-up/something)",
+			want:    "[Set up](https://grafana.com/docs/k6/v1.5.x/set-up/something)",
+		},
+		{
+			name:    "multiple links in one line",
+			content: "See [metrics](https://grafana.com/docs/k6/v1.5.x/using-k6/metrics) and [checks](https://grafana.com/docs/k6/v1.5.x/using-k6/checks).",
+			want:    "See metrics and checks.",
+		},
+		{
+			name:    "link text with brackets (optional params)",
+			content: "[get( url, [params] )](https://grafana.com/docs/k6/v1.5.x/javascript-api/k6-http/get)",
+			want:    "get( url, [params] )",
+		},
+		{
+			name:    "link text with nested brackets",
+			content: "[check(selector[, options])](https://grafana.com/docs/k6/v1.5.x/javascript-api/k6-browser/page/check/)",
+			want:    "check(selector[, options])",
+		},
+		{
+			name:    "non-grafana link left alone",
+			content: "[example](https://example.com/something)",
+			want:    "[example](https://example.com/something)",
+		},
+		{
+			name:    "all included categories become plain text",
+			content: "[a](https://grafana.com/docs/k6/v1.5.x/javascript-api/foo) [b](https://grafana.com/docs/k6/v1.5.x/using-k6/bar) [c](https://grafana.com/docs/k6/v1.5.x/using-k6-browser/baz) [d](https://grafana.com/docs/k6/v1.5.x/testing-guides/qux) [e](https://grafana.com/docs/k6/v1.5.x/examples/quux) [f](https://grafana.com/docs/k6/v1.5.x/results-output/corge) [g](https://grafana.com/docs/k6/v1.5.x/reference/grault)",
+			want:    "a b c d e f g",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			got := Transform(tt.content, "v1.5.x", nil)
 			if got != tt.want {
 				t.Errorf("got: %q, want: %q", got, tt.want)
 			}
@@ -497,8 +579,13 @@ If you need the whole test to fail based on the results of a check, you have to 
 	if strings.Contains(got, "<K6_VERSION>") {
 		t.Error("version placeholder should be replaced")
 	}
-	if !strings.Contains(got, "v1.5.x") {
-		t.Error("version string should be present")
+
+	// Internal docs links should be plain text (no URL).
+	if strings.Contains(got, "grafana.com/docs/k6") {
+		t.Error("internal docs links should be converted to plain text")
+	}
+	if !strings.Contains(got, "rate metric") {
+		t.Error("link text should be preserved")
 	}
 
 	// HTML comments should be stripped.
@@ -621,9 +708,15 @@ running (00m12.8s), 00/20 VUs
 		t.Error("section shortcodes should be stripped")
 	}
 
-	// Version replaced.
+	// Version replaced and internal link converted to plain text.
 	if strings.Contains(got, "<K6_VERSION>") {
 		t.Error("version placeholder should be replaced")
+	}
+	if strings.Contains(got, "grafana.com/docs/k6") {
+		t.Error("internal docs links should be converted to plain text")
+	}
+	if !strings.Contains(got, "open vs closed") {
+		t.Error("link text should be preserved")
 	}
 
 	// Collapse tags stripped, content preserved.

@@ -13,7 +13,25 @@ var (
 	reAnyShortcode = regexp.MustCompile(`\{\{<\s*/?\s*[^>]+>\}\}`)
 	reHTMLComment  = regexp.MustCompile(`<!--[\s\S]*?-->`)
 	reExtraNewline = regexp.MustCompile(`\n{3,}`)
+
+	// reInternalLink matches markdown links pointing to Grafana k6 docs.
+	// Link text may contain brackets (e.g., "get(url, [params])"), so we
+	// match greedily up to "](https://grafana.com/docs/k6/".
+	// Captures: [1]=link text, [2]=path after /docs/k6/vX.Y.Z/
+	reInternalLink = regexp.MustCompile(`\[((?:[^\[\]]|\[[^\]]*\])*)\]\(https://grafana\.com/docs/k6/v[^/]+/([^)]*)\)`)
 )
+
+// includedCategories is the set of doc categories we ship.
+// Links to these become plain text; links to anything else keep the URL.
+var includedCategories = map[string]bool{
+	"javascript-api":   true,
+	"using-k6":         true,
+	"using-k6-browser": true,
+	"testing-guides":   true,
+	"examples":         true,
+	"results-output":   true,
+	"reference":        true,
+}
 
 // Transform applies Hugo shortcode resolution and markdown cleanup to content.
 // The pipeline runs in a fixed order:
@@ -23,9 +41,10 @@ var (
 //  4. Strip section tags
 //  5. Strip remaining shortcodes
 //  6. Replace <K6_VERSION> with version
-//  7. Strip HTML comments
-//  8. Strip YAML frontmatter
-//  9. Normalize whitespace
+//  7. Convert internal docs links to plain text
+//  8. Strip HTML comments
+//  9. Strip YAML frontmatter
+//  10. Normalize whitespace
 func Transform(content, version string, sharedContent map[string]string) string {
 	if content == "" {
 		return ""
@@ -85,13 +104,36 @@ func Transform(content, version string, sharedContent map[string]string) string 
 	// 6. Replace version placeholder.
 	s = strings.ReplaceAll(s, "<K6_VERSION>", version)
 
-	// 7. Strip HTML comments.
+	// 7. Convert internal docs links to plain text.
+	// Links pointing to categories we ship become just the link text.
+	// Links to excluded categories (extensions, set-up, etc.) keep the URL.
+	s = reInternalLink.ReplaceAllStringFunc(s, func(match string) string {
+		m := reInternalLink.FindStringSubmatch(match)
+		if m == nil {
+			return match
+		}
+		linkText, path := m[1], m[2]
+		// Strip trailing slash and anchor.
+		clean := strings.SplitN(path, "#", 2)[0]
+		clean = strings.TrimRight(clean, "/")
+		// Get the top-level category.
+		cat := clean
+		if i := strings.Index(clean, "/"); i != -1 {
+			cat = clean[:i]
+		}
+		if includedCategories[cat] {
+			return linkText
+		}
+		return match
+	})
+
+	// 8. Strip HTML comments.
 	s = reHTMLComment.ReplaceAllString(s, "")
 
-	// 8. Strip YAML frontmatter.
+	// 9. Strip YAML frontmatter.
 	s = StripFrontmatter(s)
 
-	// 9. Normalize whitespace: collapse 3+ consecutive newlines to 2.
+	// 10. Normalize whitespace: collapse 3+ consecutive newlines to 2.
 	s = reExtraNewline.ReplaceAllString(s, "\n\n")
 
 	return s
