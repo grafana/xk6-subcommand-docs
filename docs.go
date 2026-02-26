@@ -23,7 +23,7 @@ func childName(childSlug, parentSlug string) string {
 
 // printTOC prints the table of contents grouped by category.
 func printTOC(w io.Writer, idx *Index, version string) {
-	fmt.Fprintf(w, "k6 Documentation (%s)\n\n", version)
+	fmt.Fprintf(w, "k6 Documentation (%s)\n", version)
 	fmt.Fprintln(w, "Use: k6 x docs <topic>")
 
 	topLevel := idx.TopLevel()
@@ -92,7 +92,6 @@ func printList(w io.Writer, idx *Index, slug string) {
 		return
 	}
 
-	fmt.Fprintln(w)
 	for _, child := range children {
 		name := childName(child.Slug, slug)
 		fmt.Fprintf(w, "  %-20s %s\n", name, child.Description)
@@ -118,7 +117,6 @@ func printSearch(w io.Writer, idx *Index, term, cacheDir string) {
 		return
 	}
 
-	fmt.Fprintln(w)
 	for _, sec := range results {
 		name := childName(sec.Slug, "")
 		fmt.Fprintf(w, "  %-20s %s\n", name, sec.Description)
