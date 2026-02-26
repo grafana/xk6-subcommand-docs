@@ -30,6 +30,43 @@ func truncate(s string, max int) string {
 	return s[:max-3] + "..."
 }
 
+// listItem is a name+description pair for aligned list rendering.
+type listItem struct {
+	Name        string
+	Description string
+}
+
+// printAlignedList prints items as a left-aligned name+description list.
+// Duplicate names (by Name) are skipped. Each line is indented by indent.
+func printAlignedList(w io.Writer, items []listItem, indent string) {
+	seen := make(map[string]bool, len(items))
+
+	maxWidth := 0
+	for _, item := range items {
+		if seen[item.Name] {
+			continue
+		}
+		seen[item.Name] = true
+		if len(item.Name) > maxWidth {
+			maxWidth = len(item.Name)
+		}
+	}
+
+	fmtStr := fmt.Sprintf("%s%%-%ds %%s\n", indent, maxWidth+1)
+
+	// Reset seen for the printing pass.
+	for k := range seen {
+		delete(seen, k)
+	}
+	for _, item := range items {
+		if seen[item.Name] {
+			continue
+		}
+		seen[item.Name] = true
+		fmt.Fprintf(w, fmtStr, item.Name, truncate(item.Description, 80))
+	}
+}
+
 // printTOC prints the table of contents grouped by category.
 func printTOC(w io.Writer, idx *Index, version string) {
 	fmt.Fprintf(w, "k6 Documentation (%s)\n", version)
@@ -47,18 +84,14 @@ func printTOC(w io.Writer, idx *Index, version string) {
 			continue
 		}
 
-		maxWidth := 0
+		items := make([]listItem, 0, len(children))
 		for _, child := range children {
-			if n := len(childName(child.Slug, cat.Slug)); n > maxWidth {
-				maxWidth = n
-			}
+			items = append(items, listItem{
+				Name:        childName(child.Slug, cat.Slug),
+				Description: child.Description,
+			})
 		}
-		fmtStr := fmt.Sprintf("  %%-%ds %%s\n", maxWidth+1)
-
-		for _, child := range children {
-			name := childName(child.Slug, cat.Slug)
-			fmt.Fprintf(w, fmtStr, name, truncate(child.Description, 80))
-		}
+		printAlignedList(w, items, "  ")
 	}
 }
 
@@ -108,35 +141,28 @@ func printList(w io.Writer, idx *Index, slug string) {
 		return
 	}
 
-	maxWidth := 0
+	items := make([]listItem, 0, len(children))
 	for _, child := range children {
-		if n := len(childName(child.Slug, slug)); n > maxWidth {
-			maxWidth = n
-		}
+		items = append(items, listItem{
+			Name:        childName(child.Slug, slug),
+			Description: child.Description,
+		})
 	}
-	fmtStr := fmt.Sprintf("  %%-%ds %%s\n", maxWidth+1)
-
-	for _, child := range children {
-		name := childName(child.Slug, slug)
-		fmt.Fprintf(w, fmtStr, name, truncate(child.Description, 80))
-	}
+	printAlignedList(w, items, "  ")
 }
 
 // printTopLevelList lists all top-level categories with their descriptions.
 func printTopLevelList(w io.Writer, idx *Index) {
 	cats := idx.TopLevel()
 
-	maxWidth := 0
+	items := make([]listItem, 0, len(cats))
 	for _, cat := range cats {
-		if len(cat.Slug) > maxWidth {
-			maxWidth = len(cat.Slug)
-		}
+		items = append(items, listItem{
+			Name:        cat.Slug,
+			Description: cat.Description,
+		})
 	}
-	fmtStr := fmt.Sprintf("  %%-%ds %%s\n", maxWidth+1)
-
-	for _, cat := range cats {
-		fmt.Fprintf(w, fmtStr, cat.Slug, truncate(cat.Description, 80))
-	}
+	printAlignedList(w, items, "  ")
 }
 
 // searchGroupKey returns the grouping key for a search result.
@@ -219,26 +245,18 @@ func printSearch(w io.Writer, idx *Index, term, cacheDir string) {
 			fmt.Fprintf(w, "%s:\n", key)
 		}
 
-		// Calculate max width for alignment within this group.
-		maxWidth := 0
+		// Collect children (items that aren't the group header itself).
+		var items []listItem
 		for _, sec := range members {
 			if sec.Slug == groupSlug {
 				continue
 			}
-			if n := len(childName(sec.Slug, groupSlug)); n > maxWidth {
-				maxWidth = n
-			}
+			items = append(items, listItem{
+				Name:        childName(sec.Slug, groupSlug),
+				Description: sec.Description,
+			})
 		}
-		fmtStr := fmt.Sprintf("  %%-%ds %%s\n", maxWidth+1)
-
-		// Print children (items that aren't the group header itself).
-		for _, sec := range members {
-			if sec.Slug == groupSlug {
-				continue
-			}
-			name := childName(sec.Slug, groupSlug)
-			fmt.Fprintf(w, fmtStr, name, truncate(sec.Description, 80))
-		}
+		printAlignedList(w, items, "  ")
 
 		fmt.Fprintln(w)
 	}

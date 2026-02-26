@@ -254,6 +254,80 @@ func TestTruncate(t *testing.T) {
 	}
 }
 
+func TestPrintAlignedList(t *testing.T) {
+	t.Parallel()
+
+	t.Run("basic alignment", func(t *testing.T) {
+		t.Parallel()
+		var buf bytes.Buffer
+		items := []listItem{
+			{Name: "ab", Description: "Short name."},
+			{Name: "a-very-long-name", Description: "Long name."},
+		}
+		printAlignedList(&buf, items, "  ")
+		out := buf.String()
+
+		checkAlignment(t, "printAlignedList basic", out)
+
+		if !strings.Contains(out, "ab") {
+			t.Error("missing 'ab'")
+		}
+		if !strings.Contains(out, "a-very-long-name") {
+			t.Error("missing 'a-very-long-name'")
+		}
+	})
+
+	t.Run("deduplicates by name", func(t *testing.T) {
+		t.Parallel()
+		var buf bytes.Buffer
+		items := []listItem{
+			{Name: "cookiejar", Description: "First description."},
+			{Name: "cookiejar", Description: "Second description."},
+			{Name: "other", Description: "Other item."},
+		}
+		printAlignedList(&buf, items, "  ")
+		out := buf.String()
+
+		// "cookiejar" should appear exactly once.
+		if strings.Count(out, "cookiejar") != 1 {
+			t.Errorf("expected 'cookiejar' once, got %d times\noutput:\n%s",
+				strings.Count(out, "cookiejar"), out)
+		}
+		// First description wins.
+		if !strings.Contains(out, "First description.") {
+			t.Error("missing first description for deduplicated item")
+		}
+		if strings.Contains(out, "Second description.") {
+			t.Error("second duplicate description should not appear")
+		}
+
+		checkAlignment(t, "printAlignedList dedup", out)
+	})
+
+	t.Run("custom indent", func(t *testing.T) {
+		t.Parallel()
+		var buf bytes.Buffer
+		items := []listItem{
+			{Name: "foo", Description: "Foo desc."},
+		}
+		printAlignedList(&buf, items, "    ")
+		out := buf.String()
+
+		if !strings.HasPrefix(out, "    ") {
+			t.Errorf("expected 4-space indent, got: %q", out)
+		}
+	})
+
+	t.Run("empty list", func(t *testing.T) {
+		t.Parallel()
+		var buf bytes.Buffer
+		printAlignedList(&buf, nil, "  ")
+		if buf.Len() != 0 {
+			t.Errorf("expected empty output for nil items, got: %q", buf.String())
+		}
+	})
+}
+
 func TestPrintTOC(t *testing.T) {
 	_, idx := setupTestCache(t)
 
