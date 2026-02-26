@@ -352,11 +352,6 @@ func walkAndProcess(versionRoot, markdownDir, k6Version string, sharedContent ma
 // A child is a section whose slug starts with parent slug + "/" and has
 // no further "/" after that prefix (direct child only).
 func populateChildren(sections []docs.Section) {
-	bySlug := make(map[string]*docs.Section, len(sections))
-	for i := range sections {
-		bySlug[sections[i].Slug] = &sections[i]
-	}
-
 	for i := range sections {
 		if !sections[i].IsIndex {
 			continue
