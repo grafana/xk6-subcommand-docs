@@ -59,7 +59,6 @@ func printTOC(w io.Writer, idx *Index, version string) {
 func printSection(w io.Writer, idx *Index, section *Section, cacheDir, version string) {
 	content := readMarkdown(cacheDir, section.RelPath)
 	if content != "" {
-		content = Transform(content, version, nil)
 		fmt.Fprint(w, content)
 		if !strings.HasSuffix(content, "\n") {
 			fmt.Fprintln(w)
@@ -225,8 +224,6 @@ func printAll(w io.Writer, idx *Index, cacheDir, version string) {
 		if content == "" {
 			continue
 		}
-		content = Transform(content, version, nil)
-
 		fmt.Fprint(w, content)
 		if !strings.HasSuffix(content, "\n") {
 			fmt.Fprintln(w)
