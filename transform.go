@@ -16,6 +16,12 @@ var (
 	reHTMLComment  = regexp.MustCompile(`<!--[\s\S]*?-->`)
 	reExtraNewline = regexp.MustCompile(`\n{3,}`)
 
+	// reImageLink matches markdown image links: ![alt](url)
+	reImageLink = regexp.MustCompile(`!\[([^\]]*)\]\([^)]+\)`)
+	// reMarkdownLink matches markdown links: [text](url)
+	// The text portion allows one level of nested brackets for cases like [get(url, [params])](url).
+	reMarkdownLink = regexp.MustCompile(`\[((?:[^\[\]]|\[[^\]]*\])*)\]\([^)]+\)`)
+
 	// reInternalLink matches markdown links pointing to Grafana k6 docs.
 	// Link text may contain brackets (e.g., "get(url, [params])"), so we
 	// match greedily up to "](https://grafana.com/docs/k6/".
@@ -46,6 +52,8 @@ var includedCategories = map[string]bool{
 //  5b. Strip <br/> tags
 //  6. Replace <K6_VERSION> with version
 //  7. Convert internal docs links to plain text
+//  7a. Strip remaining markdown image links
+//  7b. Strip remaining markdown links
 //  8. Strip HTML comments
 //  9. Strip YAML frontmatter
 //  10. Normalize whitespace
@@ -136,6 +144,12 @@ func Transform(content, version string, sharedContent map[string]string) string 
 		}
 		return match
 	})
+
+	// 7a. Strip remaining markdown image links, keeping alt text.
+	s = reImageLink.ReplaceAllString(s, "$1")
+
+	// 7b. Strip remaining markdown links, keeping link text.
+	s = reMarkdownLink.ReplaceAllString(s, "$1")
 
 	// 8. Strip HTML comments.
 	s = reHTMLComment.ReplaceAllString(s, "")
