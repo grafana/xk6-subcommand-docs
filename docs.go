@@ -43,13 +43,21 @@ func printTOC(w io.Writer, idx *Index, version string) {
 		children := idx.Children(cat.Slug)
 		if len(children) == 0 {
 			// Show the category itself if it has no children.
-			fmt.Fprintf(w, "  %-20s %s\n", childName(cat.Slug, ""), truncate(cat.Description, 80))
+			fmt.Fprintf(w, "  %s %s\n", childName(cat.Slug, ""), truncate(cat.Description, 80))
 			continue
 		}
 
+		maxWidth := 0
+		for _, child := range children {
+			if n := len(childName(child.Slug, cat.Slug)); n > maxWidth {
+				maxWidth = n
+			}
+		}
+		fmtStr := fmt.Sprintf("  %%-%ds %%s\n", maxWidth+1)
+
 		for _, child := range children {
 			name := childName(child.Slug, cat.Slug)
-			fmt.Fprintf(w, "  %-20s %s\n", name, truncate(child.Description, 80))
+			fmt.Fprintf(w, fmtStr, name, truncate(child.Description, 80))
 		}
 	}
 }
@@ -100,16 +108,34 @@ func printList(w io.Writer, idx *Index, slug string) {
 		return
 	}
 
+	maxWidth := 0
+	for _, child := range children {
+		if n := len(childName(child.Slug, slug)); n > maxWidth {
+			maxWidth = n
+		}
+	}
+	fmtStr := fmt.Sprintf("  %%-%ds %%s\n", maxWidth+1)
+
 	for _, child := range children {
 		name := childName(child.Slug, slug)
-		fmt.Fprintf(w, "  %-20s %s\n", name, truncate(child.Description, 80))
+		fmt.Fprintf(w, fmtStr, name, truncate(child.Description, 80))
 	}
 }
 
 // printTopLevelList lists all top-level categories with their descriptions.
 func printTopLevelList(w io.Writer, idx *Index) {
-	for _, cat := range idx.TopLevel() {
-		fmt.Fprintf(w, "  %-24s %s\n", cat.Slug, truncate(cat.Description, 80))
+	cats := idx.TopLevel()
+
+	maxWidth := 0
+	for _, cat := range cats {
+		if len(cat.Slug) > maxWidth {
+			maxWidth = len(cat.Slug)
+		}
+	}
+	fmtStr := fmt.Sprintf("  %%-%ds %%s\n", maxWidth+1)
+
+	for _, cat := range cats {
+		fmt.Fprintf(w, fmtStr, cat.Slug, truncate(cat.Description, 80))
 	}
 }
 
@@ -193,13 +219,25 @@ func printSearch(w io.Writer, idx *Index, term, cacheDir string) {
 			fmt.Fprintf(w, "%s:\n", key)
 		}
 
+		// Calculate max width for alignment within this group.
+		maxWidth := 0
+		for _, sec := range members {
+			if sec.Slug == groupSlug {
+				continue
+			}
+			if n := len(childName(sec.Slug, groupSlug)); n > maxWidth {
+				maxWidth = n
+			}
+		}
+		fmtStr := fmt.Sprintf("  %%-%ds %%s\n", maxWidth+1)
+
 		// Print children (items that aren't the group header itself).
 		for _, sec := range members {
 			if sec.Slug == groupSlug {
 				continue
 			}
 			name := childName(sec.Slug, groupSlug)
-			fmt.Fprintf(w, "  %-22s %s\n", name, truncate(sec.Description, 80))
+			fmt.Fprintf(w, fmtStr, name, truncate(sec.Description, 80))
 		}
 
 		fmt.Fprintln(w)
