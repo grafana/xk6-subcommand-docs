@@ -34,6 +34,11 @@ func TestResolve(t *testing.T) {
 		{name: "metrics module shortcut", args: []string{"metrics"}, want: "javascript-api/k6-metrics"},
 		{name: "ws module shortcut", args: []string{"ws"}, want: "javascript-api/k6-ws"},
 		{name: "data module shortcut", args: []string{"data"}, want: "javascript-api/k6-data"},
+
+		// Rule 3 — duplicate "k6-" prefix must be stripped
+		{name: "k6-http already prefixed", args: []string{"k6-http", "get"}, want: "javascript-api/k6-http/get"},
+		{name: "k6-metrics already prefixed", args: []string{"k6-metrics"}, want: "javascript-api/k6-metrics"},
+		{name: "k6-ws already prefixed", args: []string{"k6-ws"}, want: "javascript-api/k6-ws"},
 	}
 
 	for _, tt := range tests {
