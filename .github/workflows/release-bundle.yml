@@ -12,25 +12,35 @@ on:
 jobs:
   build-bundle:
     runs-on: ubuntu-latest
-    env:
-      VERSION: ${{ github.event.client_payload.version || github.event.inputs.version }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
         with:
           go-version-file: go.mod
+      - name: Resolve version
+        id: version
+        run: |
+          RAW="${{ github.event.client_payload.version || github.event.inputs.version }}"
+          # Ensure v prefix
+          RAW="${RAW#v}"
+          RAW="v${RAW}"
+          # Map to wildcard: v1.6.1 → v1.6.x
+          WILDCARD=$(echo "$RAW" | sed 's/\.[0-9]*$/\.x/')
+          echo "exact=$RAW" >> "$GITHUB_OUTPUT"
+          echo "wildcard=$WILDCARD" >> "$GITHUB_OUTPUT"
+          echo "Exact: $RAW → Wildcard: $WILDCARD"
       - name: Clone k6-docs
         run: git clone --depth 1 https://github.com/grafana/k6-docs.git /tmp/k6-docs
       - name: Prepare docs
-        run: go run ./cmd/prepare --k6-version=${{ env.VERSION }} --k6-docs-path=/tmp/k6-docs --output-dir=dist
+        run: go run ./cmd/prepare --k6-version=${{ steps.version.outputs.exact }} --k6-docs-path=/tmp/k6-docs --output-dir=dist
       - name: Compress bundle
         run: |
-          apt-get update && apt-get install -y zstd
-          tar -cf - -C dist . | zstd --ultra -22 -o docs-${{ env.VERSION }}.tar.zst
+          sudo apt-get update && sudo apt-get install -y zstd
+          tar -cf - -C dist . | zstd --ultra -22 -o docs-${{ steps.version.outputs.wildcard }}.tar.zst
       - name: Publish release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: docs-${{ env.VERSION }}
-          name: "Docs bundle for k6 ${{ env.VERSION }}"
-          files: docs-${{ env.VERSION }}.tar.zst
-          body: "Auto-generated documentation bundle for k6 ${{ env.VERSION }}"
+          tag_name: docs-${{ steps.version.outputs.wildcard }}
+          name: "Docs bundle for k6 ${{ steps.version.outputs.wildcard }}"
+          files: docs-${{ steps.version.outputs.wildcard }}.tar.zst
+          body: "Auto-generated documentation bundle for k6 ${{ steps.version.outputs.exact }}"
