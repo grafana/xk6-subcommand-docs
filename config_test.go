@@ -92,95 +92,113 @@ func TestPipeRenderer(t *testing.T) {
 	t.Run("nil buffer is no-op", func(t *testing.T) {
 		t.Parallel()
 
-		var out bytes.Buffer
-		err := pipeRenderer(nil, &out, "cat")
+		var stdout, fallback bytes.Buffer
+		err := pipeRenderer(nil, &stdout, &fallback, "cat")
 		if err != nil {
 			t.Fatalf("pipeRenderer: %v", err)
 		}
-		if out.Len() != 0 {
-			t.Errorf("pipeRenderer: wrote %d bytes to output, want 0", out.Len())
+		if stdout.Len()+fallback.Len() != 0 {
+			t.Error("expected no output")
 		}
 	})
 
 	t.Run("empty buffer is no-op", func(t *testing.T) {
 		t.Parallel()
 
-		buf := &bytes.Buffer{}
-		var out bytes.Buffer
-		err := pipeRenderer(buf, &out, "cat")
+		var stdout, fallback bytes.Buffer
+		err := pipeRenderer(&bytes.Buffer{}, &stdout, &fallback, "cat")
 		if err != nil {
 			t.Fatalf("pipeRenderer: %v", err)
 		}
-		if out.Len() != 0 {
-			t.Errorf("pipeRenderer: wrote %d bytes to output, want 0", out.Len())
+		if stdout.Len()+fallback.Len() != 0 {
+			t.Error("expected no output")
 		}
 	})
 
-	t.Run("renderer processes content", func(t *testing.T) {
+	t.Run("renderer writes to stdout not fallback", func(t *testing.T) {
 		t.Parallel()
 
 		buf := bytes.NewBufferString("hello world")
-		var out bytes.Buffer
-		// Use cat as a passthrough renderer.
-		err := pipeRenderer(buf, &out, "cat")
+		var stdout, fallback bytes.Buffer
+		err := pipeRenderer(buf, &stdout, &fallback, "cat")
 		if err != nil {
 			t.Fatalf("pipeRenderer: %v", err)
 		}
-		if out.String() != "hello world" {
-			t.Errorf("pipeRenderer: output = %q, want %q", out.String(), "hello world")
+		if stdout.String() != "hello world" {
+			t.Errorf("stdout = %q, want %q", stdout.String(), "hello world")
+		}
+		if fallback.Len() != 0 {
+			t.Errorf("fallback got %d bytes, want 0", fallback.Len())
 		}
 	})
 
-	t.Run("renderer with args", func(t *testing.T) {
+	t.Run("renderer with args writes to stdout", func(t *testing.T) {
 		t.Parallel()
 
 		buf := bytes.NewBufferString("hello world\ngoodbye world\n")
-		var out bytes.Buffer
-		// Use head -n 1 as a renderer that takes arguments.
-		err := pipeRenderer(buf, &out, "head -n 1")
+		var stdout, fallback bytes.Buffer
+		err := pipeRenderer(buf, &stdout, &fallback, "head -n 1")
 		if err != nil {
 			t.Fatalf("pipeRenderer: %v", err)
 		}
-		if strings.TrimSpace(out.String()) != "hello world" {
-			t.Errorf("pipeRenderer: output = %q, want %q", strings.TrimSpace(out.String()), "hello world")
+		if strings.TrimSpace(stdout.String()) != "hello world" {
+			t.Errorf("stdout = %q, want %q", strings.TrimSpace(stdout.String()), "hello world")
+		}
+		if fallback.Len() != 0 {
+			t.Errorf("fallback got %d bytes, want 0", fallback.Len())
 		}
 	})
 
-	t.Run("missing renderer falls back to raw output", func(t *testing.T) {
+	t.Run("missing renderer falls back", func(t *testing.T) {
 		t.Parallel()
 
 		content := "# Documentation\nSome content here.\n"
-		buf := bytes.NewBufferString(content)
-		var out bytes.Buffer
-		err := pipeRenderer(buf, &out, "nonexistent-renderer-binary-xyz")
-		if err != nil {
-			t.Fatalf("pipeRenderer: unexpected error: %v", err)
-		}
-		if out.String() != content {
-			t.Errorf("pipeRenderer fallback: output = %q, want %q", out.String(), content)
-		}
-	})
-
-	t.Run("empty renderer string writes raw output", func(t *testing.T) {
-		t.Parallel()
-
-		content := "raw content"
-		buf := bytes.NewBufferString(content)
-		var out bytes.Buffer
-		err := pipeRenderer(buf, &out, "")
+		var stdout, fallback bytes.Buffer
+		err := pipeRenderer(bytes.NewBufferString(content), &stdout, &fallback, "nonexistent-renderer-binary-xyz")
 		if err != nil {
 			t.Fatalf("pipeRenderer: %v", err)
 		}
-		if out.String() != content {
-			t.Errorf("pipeRenderer: output = %q, want %q", out.String(), content)
+		if fallback.String() != content {
+			t.Errorf("fallback = %q, want %q", fallback.String(), content)
+		}
+		if stdout.Len() != 0 {
+			t.Errorf("stdout got %d bytes, want 0", stdout.Len())
+		}
+	})
+
+	t.Run("failing renderer falls back", func(t *testing.T) {
+		t.Parallel()
+
+		content := "# Documentation\nSome content here.\n"
+		var stdout, fallback bytes.Buffer
+		err := pipeRenderer(bytes.NewBufferString(content), &stdout, &fallback, "false")
+		if err != nil {
+			t.Fatalf("pipeRenderer: %v", err)
+		}
+		if fallback.String() != content {
+			t.Errorf("fallback = %q, want %q", fallback.String(), content)
+		}
+	})
+
+	t.Run("empty renderer string falls back", func(t *testing.T) {
+		t.Parallel()
+
+		content := "raw content"
+		var stdout, fallback bytes.Buffer
+		err := pipeRenderer(bytes.NewBufferString(content), &stdout, &fallback, "")
+		if err != nil {
+			t.Fatalf("pipeRenderer: %v", err)
+		}
+		if fallback.String() != content {
+			t.Errorf("fallback = %q, want %q", fallback.String(), content)
+		}
+		if stdout.Len() != 0 {
+			t.Errorf("stdout got %d bytes, want 0", stdout.Len())
 		}
 	})
 }
 
 func TestRendererNotUsedWhenNotTTY(t *testing.T) {
-	// This test verifies the integration behavior: when stdout is not a TTY
-	// (which is the case in test environments), the renderer is NOT invoked
-	// even when configured. Output goes directly to the writer.
 	cacheDir, _ := setupTestCache(t)
 
 	dir := t.TempDir()
@@ -188,7 +206,6 @@ func TestRendererNotUsedWhenNotTTY(t *testing.T) {
 	if err := os.MkdirAll(k6Dir, 0o755); err != nil {
 		t.Fatal(err)
 	}
-	// Configure a renderer that would fail if invoked.
 	if err := os.WriteFile(filepath.Join(k6Dir, "docs.yaml"), []byte("renderer: nonexistent-renderer-xyz\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
@@ -205,8 +222,6 @@ func TestRendererNotUsedWhenNotTTY(t *testing.T) {
 	}
 
 	out := buf.String()
-	// In non-TTY mode (test environment), output should go directly to the writer
-	// without the renderer being invoked.
 	if !strings.Contains(out, "k6 Documentation (v0.55.x)") {
 		t.Error("expected direct output in non-TTY mode, got: " + out)
 	}

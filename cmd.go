@@ -15,6 +15,10 @@ import (
 )
 
 func newCmd(gs *state.GlobalState) *cobra.Command {
+	return newDocsCmd(gs, os.Stdout)
+}
+
+func newDocsCmd(gs *state.GlobalState, stdout io.Writer) *cobra.Command {
 	var (
 		listFlag    bool
 		allFlag     bool
@@ -49,7 +53,7 @@ func newCmd(gs *state.GlobalState) *cobra.Command {
 
 			baseW := cmd.OutOrStdout()
 			var buf *bytes.Buffer
-			var w io.Writer = baseW
+			w := io.Writer(baseW)
 
 			if cfg.Renderer != "" && isTTY {
 				buf = &bytes.Buffer{}
@@ -58,25 +62,24 @@ func newCmd(gs *state.GlobalState) *cobra.Command {
 
 			if allFlag {
 				printAll(w, idx, cacheDir, version)
-				return pipeRenderer(buf, baseW, cfg.Renderer)
+				return pipeRenderer(buf, os.Stdout, baseW, cfg.Renderer)
 			}
 
 			if listFlag && len(args) == 0 {
 				printTopLevelList(w, idx)
-				return pipeRenderer(buf, baseW, cfg.Renderer)
+				return pipeRenderer(buf, os.Stdout, baseW, cfg.Renderer)
 			}
 
 			if len(args) == 0 {
 				printTOC(w, idx, version)
-				return pipeRenderer(buf, baseW, cfg.Renderer)
+				return pipeRenderer(buf, os.Stdout, baseW, cfg.Renderer)
 			}
 
-			// Special case: "best-practices" as first arg.
 			if args[0] == "best-practices" {
 				if err := printBestPractices(w, cacheDir); err != nil {
 					return err
 				}
-				return pipeRenderer(buf, baseW, cfg.Renderer)
+				return pipeRenderer(buf, os.Stdout, baseW, cfg.Renderer)
 			}
 
 			slug := ResolveWithLookup(args, func(s string) bool {
@@ -91,11 +94,11 @@ func newCmd(gs *state.GlobalState) *cobra.Command {
 
 			if listFlag {
 				printList(w, idx, slug)
-				return pipeRenderer(buf, baseW, cfg.Renderer)
+				return pipeRenderer(buf, os.Stdout, baseW, cfg.Renderer)
 			}
 
 			printSection(w, idx, sec, cacheDir, version)
-			return pipeRenderer(buf, baseW, cfg.Renderer)
+			return pipeRenderer(buf, os.Stdout, baseW, cfg.Renderer)
 		},
 	}
 
@@ -124,28 +127,26 @@ func newCmd(gs *state.GlobalState) *cobra.Command {
 	return cmd
 }
 
-// pipeRenderer sends the buffered output through the configured renderer command.
-// If buf is nil (no renderer configured or stdout is not a TTY), it's a no-op.
-// If the renderer command fails, the raw output is written to fallback as-is.
-func pipeRenderer(buf *bytes.Buffer, fallback io.Writer, renderer string) error {
+func pipeRenderer(buf *bytes.Buffer, stdout, fallback io.Writer, renderer string) error {
 	if buf == nil || buf.Len() == 0 {
 		return nil
 	}
 
+	raw := buf.Bytes()
+
 	parts := strings.Fields(renderer)
 	if len(parts) == 0 {
-		_, err := fallback.Write(buf.Bytes())
+		_, err := fallback.Write(raw)
 		return err
 	}
 
 	rc := exec.Command(parts[0], parts[1:]...) //nolint:gosec // user-configured renderer
-	rc.Stdin = buf
-	rc.Stdout = fallback
+	rc.Stdin = bytes.NewReader(raw)
+	rc.Stdout = stdout
 	rc.Stderr = os.Stderr
 
 	if err := rc.Run(); err != nil {
-		// Renderer failed — fall back to raw output.
-		_, writeErr := fallback.Write(buf.Bytes())
+		_, writeErr := fallback.Write(raw)
 		return writeErr
 	}
 
