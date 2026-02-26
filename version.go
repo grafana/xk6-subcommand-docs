@@ -23,13 +23,17 @@ func detectK6Version(readBuildInfo func() (*debug.BuildInfo, bool)) (string, err
 	return "", errors.New("go.k6.io/k6 dependency not found in build info")
 }
 
-// MapToWildcard converts a semver version to a wildcard patch version.
-// "v1.5.0" becomes "v1.5.x", "v0.55.2-rc.1" becomes "v0.55.x".
-// Pre-release suffixes and build metadata are stripped.
-// The "v" prefix is always added if missing, since the k6-docs repository
-// uses v-prefixed directory names (e.g. "v1.6.x").
-// If the version doesn't contain at least two dots (major.minor.patch),
-// it is returned as-is.
+// MapToWildcard replaces the last dot-separated segment of a version string
+// with "x" to produce a wildcard directory name for k6-docs lookups.
+// For example, "v1.5.0" becomes "v1.5.x" and "v0.55.2-rc.1" becomes "v0.55.x".
+//
+// Pre-release suffixes (after "-") and build metadata (after "+") are stripped
+// before the replacement. A "v" prefix is added to the result if missing, since
+// the k6-docs repository uses v-prefixed directory names (e.g. "v1.6.x").
+//
+// If the version is empty, an empty string is returned. If the cleaned version
+// contains fewer than two dots, the original version is returned unchanged
+// (no wildcard replacement or prefix normalization is applied).
 func MapToWildcard(version string) string {
 	if version == "" {
 		return ""
