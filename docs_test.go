@@ -344,7 +344,7 @@ func TestPrintList(t *testing.T) {
 func TestPrintSearch(t *testing.T) {
 	cacheDir, idx := setupTestCache(t)
 
-	t.Run("match in title", func(t *testing.T) {
+	t.Run("match in title groups by parent", func(t *testing.T) {
 		var buf bytes.Buffer
 		printSearch(&buf, idx, "Scenarios", cacheDir)
 		out := buf.String()
@@ -352,18 +352,26 @@ func TestPrintSearch(t *testing.T) {
 		if !strings.Contains(out, `Results for "Scenarios"`) {
 			t.Error("printSearch: missing results header")
 		}
+		// Should be grouped under using-k6.
+		if !strings.Contains(out, "using-k6:") {
+			t.Error("printSearch: missing 'using-k6:' group header")
+		}
 		if !strings.Contains(out, "scenarios") {
-			t.Error("printSearch: missing result 'scenarios'")
+			t.Error("printSearch: missing 'scenarios' result")
 		}
 	})
 
-	t.Run("match in description", func(t *testing.T) {
+	t.Run("match in description shows group with description", func(t *testing.T) {
 		var buf bytes.Buffer
 		printSearch(&buf, idx, "GET request", cacheDir)
 		out := buf.String()
 
+		// Should be grouped under k6-http.
+		if !strings.Contains(out, "k6-http:") {
+			t.Error("printSearch: missing 'k6-http:' group header")
+		}
 		if !strings.Contains(out, "get") {
-			t.Error("printSearch: missing result 'get'")
+			t.Error("printSearch: missing 'get' result")
 		}
 	})
 
@@ -372,8 +380,32 @@ func TestPrintSearch(t *testing.T) {
 		printSearch(&buf, idx, "WebSocket example content", cacheDir)
 		out := buf.String()
 
+		if !strings.Contains(out, "examples:") {
+			t.Error("printSearch: missing 'examples:' group header")
+		}
 		if !strings.Contains(out, "websockets") {
-			t.Error("printSearch: missing result from body match")
+			t.Error("printSearch: missing 'websockets' result")
+		}
+	})
+
+	t.Run("groups sorted alphabetically", func(t *testing.T) {
+		var buf bytes.Buffer
+		// Search for "k6" which should match multiple groups.
+		printSearch(&buf, idx, "k6", cacheDir)
+		out := buf.String()
+
+		// Verify groups appear in alphabetical order.
+		lines := strings.Split(out, "\n")
+		var groupHeaders []string
+		for _, line := range lines {
+			if strings.HasSuffix(line, ":") || (strings.Contains(line, ":") && !strings.HasPrefix(line, " ") && !strings.HasPrefix(line, "Results")) {
+				groupHeaders = append(groupHeaders, line)
+			}
+		}
+		for i := 1; i < len(groupHeaders); i++ {
+			if groupHeaders[i] < groupHeaders[i-1] {
+				t.Errorf("printSearch: groups not sorted: %q before %q", groupHeaders[i-1], groupHeaders[i])
+			}
 		}
 	})
 

@@ -5,6 +5,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 )
 
@@ -106,7 +107,17 @@ func printList(w io.Writer, idx *Index, slug string) {
 	}
 }
 
-// printSearch prints search results formatted as usable CLI paths.
+// searchGroupKey returns the grouping key for a search result.
+// JavaScript API sections group by module (second segment); others by first segment.
+func searchGroupKey(slug string) string {
+	parts := strings.SplitN(slug, "/", 3)
+	if parts[0] == "javascript-api" && len(parts) > 1 {
+		return parts[1]
+	}
+	return parts[0]
+}
+
+// printSearch prints search results grouped hierarchically by topic.
 func printSearch(w io.Writer, idx *Index, term, cacheDir string) {
 	readContent := func(slug string) string {
 		sec, ok := idx.Lookup(slug)
@@ -125,9 +136,67 @@ func printSearch(w io.Writer, idx *Index, term, cacheDir string) {
 		return
 	}
 
+	// Build a set of matched slugs and group results by parent topic.
+	matched := make(map[string]*Section, len(results))
+	groups := make(map[string][]*Section)
+	var groupOrder []string
+
 	for _, sec := range results {
-		name := childName(sec.Slug, "")
-		fmt.Fprintf(w, "  %-20s %s\n", name, truncate(sec.Description, 80))
+		matched[sec.Slug] = sec
+
+		// Skip bare "javascript-api" — it's the TOC default.
+		if sec.Slug == "javascript-api" {
+			continue
+		}
+
+		key := searchGroupKey(sec.Slug)
+		if _, exists := groups[key]; !exists {
+			groupOrder = append(groupOrder, key)
+		}
+		groups[key] = append(groups[key], sec)
+	}
+
+	// Sort groups alphabetically.
+	sort.Strings(groupOrder)
+
+	for _, key := range groupOrder {
+		members := groups[key]
+
+		// Sort items within group alphabetically by slug.
+		sort.Slice(members, func(i, j int) bool {
+			return members[i].Slug < members[j].Slug
+		})
+
+		// Check if the group topic itself is a matched result.
+		// For JS API modules, the group slug is "javascript-api/{key}".
+		// For others, it's just "{key}".
+		groupSlug := key
+		if _, ok := idx.Lookup("javascript-api/" + key); ok {
+			// If there's a javascript-api/{key} section, this is a JS API module group.
+			if members[0].Slug == "javascript-api/"+key || strings.HasPrefix(members[0].Slug, "javascript-api/"+key+"/") {
+				groupSlug = "javascript-api/" + key
+			}
+		}
+
+		groupSec := matched[groupSlug]
+
+		// Print group header.
+		if groupSec != nil {
+			fmt.Fprintf(w, "%s: %s\n", key, truncate(groupSec.Description, 80))
+		} else {
+			fmt.Fprintf(w, "%s:\n", key)
+		}
+
+		// Print children (items that aren't the group header itself).
+		for _, sec := range members {
+			if sec.Slug == groupSlug {
+				continue
+			}
+			name := childName(sec.Slug, groupSlug)
+			fmt.Fprintf(w, "  %-22s %s\n", name, truncate(sec.Description, 80))
+		}
+
+		fmt.Fprintln(w)
 	}
 }
 
