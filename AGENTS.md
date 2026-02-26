@@ -1,10 +1,15 @@
-**RULE: Update this file concisely whenever features are added, removed, or changed.**
+**RULES:**
+1. **Update this file concisely** whenever features are added, removed, or changed.
+2. **TDD**: Always use red/green/refactor. Tests must compile and fail on assertions before writing implementation.
+3. **Plans**: Store plans in `.claude/plans/` with incrementing numbers (next: `5-<name>.md`).
+
+---
 
 `k6 x docs` — offline k6 documentation in the terminal. For humans and AI agents. Docs are not embedded in the binary. On first run, the extension detects the k6 version from build info, downloads a matching compressed doc bundle (`.tar.zst`) from GitHub releases, and caches it locally (`~/.local/share/k6/docs/{version}/`). Subsequent runs serve from cache with no network. A separate standalone prepare tool (`cmd/prepare/`) builds these bundles by cloning the k6-docs Hugo repository, transforming markdown into CLI-friendly format, building a searchable index (`sections.json`), and compressing everything. CI auto-publishes a bundle per k6 release.
 
 ## Browsing
 - `k6 x docs` shows categories with children and truncated descriptions (80 char max). Each category has a usage hint footer.
-- `k6 x docs http get` resolves args to a slug (case-insensitive), reads the cached markdown, and prints it. If the topic has children, a subtopics footer is appended with comma-separated child names and a usage hint.
+- `k6 x docs http get` resolves args to a slug (case-insensitive), reads the cached markdown, and prints it. If the topic has children, a subtopics footer is appended with comma-separated child names (redundant parent prefix stripped, e.g. `cookiejar-clear` → `clear`) and a usage hint showing the full CLI path via `slugToArgs`.
 - `k6 x docs best-practices` prints a curated guide (embedded in the prepare tool via `//go:embed`).
 - `k6 x docs search <query>` fuzzy searches for the query (case-insensitive, ignores punctuation and spaces).
 
@@ -12,6 +17,7 @@
 - `k6 x docs http get` → `javascript-api/k6-http/get`
 - `k6 x docs javascript-api/k6-http/get` → `javascript-api/k6-http/get`
 - `k6 x docs using-k6 scenarios` → `using-k6/scenarios`
+- Parent-prefix fallback: `k6 x docs http cookiejar clear` → tries `.../cookiejar/clear` (miss) → `.../cookiejar/cookiejar-clear` (hit). Handled by `withParentFallback` in `resolve.go`.
 
 ### Rendering
 - Optional configurable renderer (e.g. `glow`) for pretty terminal output in `~/.config/k6/docs.yaml`.

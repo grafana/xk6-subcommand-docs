@@ -58,19 +58,21 @@ func TestResolveWithLookup(t *testing.T) {
 
 	// Simulate a real index: some slugs have k6- prefix, some don't.
 	knownSlugs := map[string]bool{
-		"javascript-api/k6-http":    true,
-		"javascript-api/k6-http/get": true,
-		"javascript-api/k6-metrics": true,
-		"javascript-api/k6-data":    true,
-		"javascript-api/k6-ws":      true,
-		"javascript-api/k6-browser": true,
-		"javascript-api/k6-browser/page/click": true,
-		"javascript-api/k6-crypto":  true, // k6-crypto exists (different from crypto)
-		"javascript-api/jslib":      true, // NO k6- prefix
-		"javascript-api/crypto":     true, // NO k6- prefix (different from k6-crypto)
-		"javascript-api/init-context":  true, // NO k6- prefix
-		"javascript-api/error-codes":   true, // NO k6- prefix
-		"using-k6/scenarios":        true,
+		"javascript-api/k6-http":                        true,
+		"javascript-api/k6-http/get":                    true,
+		"javascript-api/k6-metrics":                     true,
+		"javascript-api/k6-data":                        true,
+		"javascript-api/k6-ws":                          true,
+		"javascript-api/k6-browser":                     true,
+		"javascript-api/k6-browser/page/click":          true,
+		"javascript-api/k6-crypto":                      true, // k6-crypto exists (different from crypto)
+		"javascript-api/jslib":                          true, // NO k6- prefix
+		"javascript-api/crypto":                         true, // NO k6- prefix (different from k6-crypto)
+		"javascript-api/init-context":                   true, // NO k6- prefix
+		"javascript-api/error-codes":                    true, // NO k6- prefix
+		"javascript-api/k6-http/cookiejar":              true,
+		"javascript-api/k6-http/cookiejar/cookiejar-clear": true, // parent-prefixed child
+		"using-k6/scenarios":                            true,
 	}
 	exists := func(slug string) bool { return knownSlugs[slug] }
 
@@ -102,6 +104,9 @@ func TestResolveWithLookup(t *testing.T) {
 
 		// k6-crypto (with prefix) is different from crypto (without prefix)
 		{name: "k6-crypto with prefix", args: []string{"k6-crypto"}, want: "javascript-api/k6-crypto"},
+
+		// Parent-prefix fallback: stripped child name retries with parent prefix
+		{name: "parent-prefix fallback", args: []string{"http", "cookiejar", "clear"}, want: "javascript-api/k6-http/cookiejar/cookiejar-clear"},
 	}
 
 	for _, tt := range tests {

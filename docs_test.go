@@ -214,6 +214,10 @@ func TestChildName(t *testing.T) {
 		{"javascript-api/k6-http/post", "javascript-api/k6-http", "post"},
 		{"using-k6/scenarios", "using-k6", "scenarios"},
 		{"examples/websockets", "examples", "websockets"},
+		// Strip redundant parent-name prefix from child name.
+		{"javascript-api/k6-http/cookiejar/cookiejar-clear", "javascript-api/k6-http/cookiejar", "clear"},
+		{"javascript-api/k6-http/cookiejar/cookiejar-cookiesforurl", "javascript-api/k6-http/cookiejar", "cookiesforurl"},
+		{"javascript-api/k6-http/cookiejar/cookiejar-set", "javascript-api/k6-http/cookiejar", "set"},
 		// When parent doesn't match as prefix, fall back to last segment.
 		{"javascript-api/k6-http/get", "", "get"},
 		{"using-k6/scenarios", "other", "scenarios"},
@@ -228,6 +232,33 @@ func TestChildName(t *testing.T) {
 			got := childName(tt.childSlug, tt.parentSlug)
 			if got != tt.want {
 				t.Errorf("childName(%q, %q) = %q, want %q", tt.childSlug, tt.parentSlug, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestSlugToArgs(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		slug string
+		want string
+	}{
+		{"javascript-api/k6-http/cookiejar", "http cookiejar"},
+		{"javascript-api/k6-http", "http"},
+		{"javascript-api/crypto/subtlecrypto", "crypto subtlecrypto"},
+		{"javascript-api/jslib", "jslib"},
+		{"using-k6/scenarios", "using-k6 scenarios"},
+		{"examples/websockets", "examples websockets"},
+		{"javascript-api", "javascript-api"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.slug, func(t *testing.T) {
+			t.Parallel()
+			got := slugToArgs(tt.slug)
+			if got != tt.want {
+				t.Errorf("slugToArgs(%q) = %q, want %q", tt.slug, got, tt.want)
 			}
 		})
 	}
@@ -415,7 +446,7 @@ func TestPrintSection(t *testing.T) {
 		if !strings.Contains(out, "post") {
 			t.Error("printSection: missing 'post' in subtopics")
 		}
-		if !strings.Contains(out, "Use: k6 x docs k6-http <subtopic>") {
+		if !strings.Contains(out, "Use: k6 x docs http <subtopic>") {
 			t.Error("printSection: missing usage hint")
 		}
 	})

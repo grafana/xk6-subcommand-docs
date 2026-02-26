@@ -66,6 +66,32 @@ func ResolveWithLookup(args []string, exists func(string) bool) string {
 		return prefixed
 	}
 
-	// Neither found — return prefixed form as default (matches original behavior).
-	return prefixed
+	// Neither found — try parent-prefix fallback, then return prefixed as default.
+	return withParentFallback(prefixed, exists)
+}
+
+// withParentFallback retries a slug by prepending the parent segment name
+// to the last segment. This handles children whose actual slug carries a
+// redundant parent prefix (e.g. cookiejar/cookiejar-clear).
+func withParentFallback(slug string, exists func(string) bool) string {
+	if exists == nil || exists(slug) {
+		return slug
+	}
+	i := strings.LastIndex(slug, "/")
+	if i < 0 {
+		return slug
+	}
+	parent := slug[:i]
+	child := slug[i+1:]
+	var parentName string
+	if j := strings.LastIndex(parent, "/"); j >= 0 {
+		parentName = parent[j+1:]
+	} else {
+		parentName = parent
+	}
+	candidate := parent + "/" + parentName + "-" + child
+	if exists(candidate) {
+		return candidate
+	}
+	return slug
 }

@@ -11,15 +11,34 @@ import (
 
 // childName returns the short name of a child relative to its parent.
 // If the child slug starts with parentSlug+"/", the prefix is stripped.
-// Otherwise, the last path segment is returned.
+// Then, if the remaining name starts with the parent's last segment + "-",
+// that redundant prefix is also stripped (e.g. cookiejar-clear → clear).
 func childName(childSlug, parentSlug string) string {
 	if strings.HasPrefix(childSlug, parentSlug+"/") {
-		return childSlug[len(parentSlug)+1:]
+		name := childSlug[len(parentSlug)+1:]
+		var parentName string
+		if i := strings.LastIndex(parentSlug, "/"); i >= 0 {
+			parentName = parentSlug[i+1:]
+		} else {
+			parentName = parentSlug
+		}
+		return strings.TrimPrefix(name, parentName+"-")
 	}
 	if i := strings.LastIndex(childSlug, "/"); i >= 0 {
 		return childSlug[i+1:]
 	}
 	return childSlug
+}
+
+// slugToArgs converts a documentation slug to CLI args for display.
+// For javascript-api slugs, strips the prefix and k6- from the first segment.
+func slugToArgs(slug string) string {
+	parts := strings.Split(slug, "/")
+	if parts[0] == "javascript-api" && len(parts) > 1 {
+		parts = parts[1:]
+		parts[0] = strings.TrimPrefix(parts[0], "k6-")
+	}
+	return strings.Join(parts, " ")
 }
 
 // truncate shortens s to max characters, appending "..." if truncated.
@@ -117,7 +136,7 @@ func printSection(w io.Writer, idx *Index, section *Section, cacheDir, version s
 		fmt.Fprintln(w)
 		fmt.Fprintln(w, "---")
 		fmt.Fprintf(w, "Subtopics: %s\n", strings.Join(names, ", "))
-		fmt.Fprintf(w, "Use: k6 x docs %s <subtopic>\n", childName(section.Slug, ""))
+		fmt.Fprintf(w, "Use: k6 x docs %s <subtopic>\n", slugToArgs(section.Slug))
 	}
 }
 
