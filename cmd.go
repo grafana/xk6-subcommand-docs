@@ -36,6 +36,11 @@ func newCmd(gs *state.GlobalState) *cobra.Command {
 				return nil
 			}
 
+			if listFlag && len(args) == 0 {
+				printTopLevelList(w, idx)
+				return nil
+			}
+
 			if len(args) == 0 {
 				printTOC(w, idx, version)
 				return nil

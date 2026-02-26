@@ -106,6 +106,13 @@ func printList(w io.Writer, idx *Index, slug string) {
 	}
 }
 
+// printTopLevelList lists all top-level categories with their descriptions.
+func printTopLevelList(w io.Writer, idx *Index) {
+	for _, cat := range idx.TopLevel() {
+		fmt.Fprintf(w, "  %-24s %s\n", cat.Slug, truncate(cat.Description, 80))
+	}
+}
+
 // searchGroupKey returns the grouping key for a search result.
 // JavaScript API sections group by module (second segment); others by first segment.
 func searchGroupKey(slug string) string {

@@ -421,6 +421,33 @@ func TestPrintSearch(t *testing.T) {
 	})
 }
 
+func TestPrintTopLevelList(t *testing.T) {
+	_, idx := setupTestCache(t)
+
+	var buf bytes.Buffer
+	printTopLevelList(&buf, idx)
+	out := buf.String()
+
+	// Should list all top-level categories.
+	if !strings.Contains(out, "javascript-api") {
+		t.Error("printTopLevelList: missing 'javascript-api'")
+	}
+	if !strings.Contains(out, "using-k6") {
+		t.Error("printTopLevelList: missing 'using-k6'")
+	}
+	if !strings.Contains(out, "examples") {
+		t.Error("printTopLevelList: missing 'examples'")
+	}
+
+	// Should include descriptions.
+	if !strings.Contains(out, "k6 JavaScript API reference.") {
+		t.Error("printTopLevelList: missing javascript-api description")
+	}
+	if !strings.Contains(out, "Learn how to use k6.") {
+		t.Error("printTopLevelList: missing using-k6 description")
+	}
+}
+
 func TestPrintBestPractices(t *testing.T) {
 	cacheDir, _ := setupTestCache(t)
 
@@ -518,7 +545,31 @@ func TestCommandIntegration(t *testing.T) {
 		}
 	})
 
-	t.Run("--list flag shows compact listing", func(t *testing.T) {
+	t.Run("--list flag without args shows top-level list", func(t *testing.T) {
+		cmd := newCmd(nil)
+		var buf bytes.Buffer
+		cmd.SetOut(&buf)
+		cmd.SetErr(&buf)
+		cmd.SetArgs([]string{"--cache-dir", cacheDir, "--version", "v0.55.x", "--list"})
+
+		if err := cmd.Execute(); err != nil {
+			t.Fatalf("cmd.Execute: %v", err)
+		}
+
+		out := buf.String()
+		if !strings.Contains(out, "javascript-api") {
+			t.Error("integration --list no args: missing 'javascript-api'")
+		}
+		if !strings.Contains(out, "using-k6") {
+			t.Error("integration --list no args: missing 'using-k6'")
+		}
+		// Should NOT show the full TOC header.
+		if strings.Contains(out, "k6 Documentation") {
+			t.Error("integration --list no args: should not show TOC header")
+		}
+	})
+
+	t.Run("--list flag with topic shows compact listing", func(t *testing.T) {
 		cmd := newCmd(nil)
 		var buf bytes.Buffer
 		cmd.SetOut(&buf)
