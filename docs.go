@@ -227,7 +227,6 @@ func printAll(w io.Writer, idx *Index, cacheDir, version string) {
 		}
 		content = Transform(content, version, nil)
 
-		fmt.Fprintf(w, "# %s\n\n", sec.Title)
 		fmt.Fprint(w, content)
 		if !strings.HasSuffix(content, "\n") {
 			fmt.Fprintln(w)
