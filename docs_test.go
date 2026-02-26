@@ -181,6 +181,33 @@ func TestChildName(t *testing.T) {
 	}
 }
 
+func TestTruncate(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		input string
+		max   int
+		want  string
+	}{
+		{"short", 80, "short"},
+		{"exactly ten", 11, "exactly ten"},
+		{"this string is longer than ten", 10, "this st..."},
+		{"", 80, ""},
+		{"abc", 3, "abc"},
+		{"abcd", 3, "..."},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.input, func(t *testing.T) {
+			t.Parallel()
+			got := truncate(tt.input, tt.max)
+			if got != tt.want {
+				t.Errorf("truncate(%q, %d) = %q, want %q", tt.input, tt.max, got, tt.want)
+			}
+		})
+	}
+}
+
 func TestPrintTOC(t *testing.T) {
 	_, idx := setupTestCache(t)
 
