@@ -15,8 +15,8 @@ func TestLoadIndex(t *testing.T) {
 		if idx.Version != "1.0.0" {
 			t.Errorf("Version = %q, want %q", idx.Version, "1.0.0")
 		}
-		if got := len(idx.Sections); got != 7 {
-			t.Errorf("len(Sections) = %d, want 7", got)
+		if got := len(idx.Sections); got != 9 {
+			t.Errorf("len(Sections) = %d, want 9", got)
 		}
 	})
 
@@ -138,6 +138,36 @@ func TestSearch(t *testing.T) {
 		results := idx.Search("", nil)
 		if len(results) != 0 {
 			t.Errorf("Search(''): got %d results, want 0", len(results))
+		}
+	})
+
+	t.Run("fuzzy: spaces match concatenated title", func(t *testing.T) {
+		results := idx.Search("close context", nil)
+		if len(results) != 1 {
+			t.Fatalf("Search(close context): got %d results, want 1", len(results))
+		}
+		if results[0].Slug != "browser/closecontext" {
+			t.Errorf("Slug = %q, want %q", results[0].Slug, "browser/closecontext")
+		}
+	})
+
+	t.Run("fuzzy: dashes match concatenated title", func(t *testing.T) {
+		results := idx.Search("close-context", nil)
+		if len(results) != 1 {
+			t.Fatalf("Search(close-context): got %d results, want 1", len(results))
+		}
+		if results[0].Slug != "browser/closecontext" {
+			t.Errorf("Slug = %q, want %q", results[0].Slug, "browser/closecontext")
+		}
+	})
+
+	t.Run("fuzzy: spaces match dashed slug", func(t *testing.T) {
+		results := idx.Search("http debugging", nil)
+		if len(results) != 1 {
+			t.Fatalf("Search(http debugging): got %d results, want 1", len(results))
+		}
+		if results[0].Slug != "http-debugging" {
+			t.Errorf("Slug = %q, want %q", results[0].Slug, "http-debugging")
 		}
 	})
 }
