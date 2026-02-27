@@ -25,12 +25,9 @@ type HTTPClient interface {
 // CacheDir returns the local cache directory for a given docs version.
 // The layout is ~/.local/share/k6/docs/{version}/.
 func CacheDir(env map[string]string, version string) (string, error) {
-	home := env["HOME"]
-	if home == "" {
-		home = env["USERPROFILE"]
-	}
-	if home == "" {
-		return "", fmt.Errorf("cache dir: neither HOME nor USERPROFILE is set")
+	home, err := homeDirFromEnv(env)
+	if err != nil {
+		return "", fmt.Errorf("cache dir: %w", err)
 	}
 	return filepath.Join(home, ".local", "share", "k6", "docs", version), nil
 }
