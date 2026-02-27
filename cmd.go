@@ -61,9 +61,24 @@ func runSearch(gs *state.GlobalState, cmd *cobra.Command, args []string, opts *d
 		return err
 	}
 
+	cfg, cfgErr := loadConfig(gs.FS, gs.Env)
+	if cfgErr != nil {
+		gs.Logger.Warnf("docs: ignoring invalid config: %v", cfgErr)
+	}
+
+	isTTY := gs.Stdout.IsTTY
+	baseW := cmd.OutOrStdout()
+	var buf *bytes.Buffer
+	w := baseW
+
+	if cfg.Renderer != "" && isTTY {
+		buf = &bytes.Buffer{}
+		w = buf
+	}
+
 	term := strings.Join(args, " ")
-	printSearch(gs.FS, cmd.OutOrStdout(), idx, term, cacheDir, version)
-	return nil
+	printSearch(gs.FS, w, idx, term, cacheDir, version)
+	return pipeRenderer(cmd.Context(), buf, gs.Stdout.Writer, baseW, gs.Stderr, cfg.Renderer)
 }
 
 func runDocs(gs *state.GlobalState, cmd *cobra.Command, args []string, opts *docsOpts) error {
@@ -91,24 +106,24 @@ func runDocs(gs *state.GlobalState, cmd *cobra.Command, args []string, opts *doc
 
 	if opts.all {
 		printAll(gs.FS, w, idx, cacheDir, version)
-		return pipeRenderer(cmd.Context(), buf, gs.Stdout, baseW, gs.Stderr, cfg.Renderer)
+		return pipeRenderer(cmd.Context(), buf, gs.Stdout.Writer, baseW, gs.Stderr, cfg.Renderer)
 	}
 
 	if opts.list && len(args) == 0 {
 		printTopLevelList(w, idx)
-		return pipeRenderer(cmd.Context(), buf, gs.Stdout, baseW, gs.Stderr, cfg.Renderer)
+		return pipeRenderer(cmd.Context(), buf, gs.Stdout.Writer, baseW, gs.Stderr, cfg.Renderer)
 	}
 
 	if len(args) == 0 {
 		printTOC(w, idx, version)
-		return pipeRenderer(cmd.Context(), buf, gs.Stdout, baseW, gs.Stderr, cfg.Renderer)
+		return pipeRenderer(cmd.Context(), buf, gs.Stdout.Writer, baseW, gs.Stderr, cfg.Renderer)
 	}
 
 	if args[0] == "best-practices" {
 		if err := printBestPractices(gs.FS, w, cacheDir, version); err != nil {
 			return err
 		}
-		return pipeRenderer(cmd.Context(), buf, gs.Stdout, baseW, gs.Stderr, cfg.Renderer)
+		return pipeRenderer(cmd.Context(), buf, gs.Stdout.Writer, baseW, gs.Stderr, cfg.Renderer)
 	}
 
 	slug := ResolveWithLookup(args, func(s string) bool {
@@ -123,11 +138,11 @@ func runDocs(gs *state.GlobalState, cmd *cobra.Command, args []string, opts *doc
 
 	if opts.list {
 		printList(w, idx, slug)
-		return pipeRenderer(cmd.Context(), buf, gs.Stdout, baseW, gs.Stderr, cfg.Renderer)
+		return pipeRenderer(cmd.Context(), buf, gs.Stdout.Writer, baseW, gs.Stderr, cfg.Renderer)
 	}
 
 	printSection(gs.FS, w, idx, sec, cacheDir, version)
-	return pipeRenderer(cmd.Context(), buf, gs.Stdout, baseW, gs.Stderr, cfg.Renderer)
+	return pipeRenderer(cmd.Context(), buf, gs.Stdout.Writer, baseW, gs.Stderr, cfg.Renderer)
 }
 
 func logMode(gs *state.GlobalState, isTTY bool) {
