@@ -5,6 +5,9 @@
 
 **Look up any k6 doc instantly, right from your terminal.**
 
+> [!NOTE]
+> If you find this extension useful, please star the repo. Stars help us prioritize maintenance.
+
 A [k6 extension](https://grafana.com/docs/k6/latest/extensions/) for developers and AI agents who want to stay in the terminal.
 
 - Stay in the flow:  never leave the terminal to look something up
@@ -12,9 +15,6 @@ A [k6 extension](https://grafana.com/docs/k6/latest/extensions/) for developers 
 - Always the right version:  docs match your k6 build, not just "latest"
 - Find what you need: search by any word
 - Compose with the tools you love ([glow](https://github.com/charmbracelet/glow)) and render beautiful docs
-
-> [!NOTE]
-> If you find this extension useful, please star the repo. Stars help us prioritize maintenance.
 
 ## Usage
 
