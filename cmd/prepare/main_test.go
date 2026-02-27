@@ -551,44 +551,6 @@ func TestCategoryDerivation(t *testing.T) {
 	}
 }
 
-func TestIsIncluded(t *testing.T) {
-	t.Parallel()
-
-	tests := []struct {
-		relPath string
-		want    bool
-	}{
-		{"javascript-api/_index.md", true},
-		{"javascript-api/k6-http/get.md", true},
-		{"using-k6/checks.md", true},
-		{"using-k6-browser/_index.md", true},
-		{"testing-guides/api-testing.md", true},
-		{"examples/basic.md", true},
-		{"results-output/json.md", true},
-		{"reference/glossary.md", true},
-		{"reference/glossary/_index.md", true},
-		{"reference/archive.md", false},
-		{"reference/_index.md", false},
-		{"reference/k6-rest-api.md", false},
-		{"get-started/_index.md", false},
-		{"set-up/install.md", false},
-		{"extensions/_index.md", false},
-		{"grafana-cloud-k6/setup.md", false},
-		{"release-notes/v1.5.md", false},
-		{"k6-studio/overview.md", false},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.relPath, func(t *testing.T) {
-			t.Parallel()
-			got := isIncluded(tt.relPath)
-			if got != tt.want {
-				t.Errorf("isIncluded(%q) = %v, want %v", tt.relPath, got, tt.want)
-			}
-		})
-	}
-}
-
 func TestParseFrontmatter(t *testing.T) {
 	t.Parallel()
 

@@ -1,7 +1,7 @@
 **RULES:**
 1. **Update this file concisely** whenever features are added, removed, or changed.
 2. **TDD**: Always use red/green/refactor. Tests must compile and fail on assertions before writing implementation.
-3. **Plans**: Store plans in `.claude/plans/` with incrementing numbers (next: `6-<name>.md`).
+3. **Plans**: Store plans in `.claude/plans/` with incrementing numbers (next: `7-<name>.md`).
 
 ---
 
@@ -50,4 +50,6 @@
 - **Release poll** — manual fallback (schedule disabled). Polls k6 releases, builds if asset missing from the `doc-bundles` release.
 
 ### Categories
-`javascript-api`, `using-k6`, `using-k6-browser`, `examples`, `extensions`, `results-output`, `testing-guides`, `set-up`
+Canonical list defined once in `categories.go`: `javascript-api`, `using-k6`, `using-k6-browser`, `testing-guides`, `examples`, `results-output`, `reference`. The `reference` category is special-cased: only `reference/glossary` paths are included.
+
+`IsIncludedDocsPath(path)` is the single entry point for path inclusion checks — used by `cmd/prepare`, `transform.go` (link classification). `isCategory(name)` is used by `resolve.go` for category-prefix detection. Home dir resolution (`HOME` → `USERPROFILE` fallback) is consolidated in `homeDirFromEnv()` in `config.go`, shared by `configDir()` and `CacheDir()`.

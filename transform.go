@@ -124,15 +124,6 @@ func Transform(content, version string) string {
 	// 7. Convert internal docs links to plain text.
 	// Links pointing to categories we ship become just the link text.
 	// Links to excluded categories (extensions, set-up, etc.) keep the URL.
-	includedCategories := map[string]bool{
-		"javascript-api":   true,
-		"using-k6":         true,
-		"using-k6-browser": true,
-		"testing-guides":   true,
-		"examples":         true,
-		"results-output":   true,
-		"reference":        true,
-	}
 	s = reInternalLink.ReplaceAllStringFunc(s, func(match string) string {
 		m := reInternalLink.FindStringSubmatch(match)
 		if m == nil {
@@ -142,9 +133,7 @@ func Transform(content, version string) string {
 		// Strip trailing slash and anchor.
 		clean := strings.SplitN(path, "#", 2)[0]
 		clean = strings.TrimRight(clean, "/")
-		// Get the top-level category.
-		cat, _, _ := strings.Cut(clean, "/")
-		if includedCategories[cat] {
+		if IsIncludedDocsPath(clean) {
 			return linkText
 		}
 		return match

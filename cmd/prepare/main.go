@@ -27,18 +27,6 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-// includedCategories returns the set of top-level directories we keep.
-func includedCategories() map[string]bool {
-	return map[string]bool{
-		"javascript-api":   true,
-		"using-k6":         true,
-		"using-k6-browser": true,
-		"testing-guides":   true,
-		"examples":         true,
-		"results-output":   true,
-	}
-}
-
 // frontmatter holds the YAML fields we extract from each doc file.
 type frontmatter struct {
 	Title       string `yaml:"title"`
@@ -190,30 +178,6 @@ func buildSharedContentMap(afs fsext.Fs, sharedDir string) (map[string]string, e
 	return m, err
 }
 
-// isIncluded reports whether a relative path from the version root should be included.
-func isIncluded(relPath string) bool {
-	// Normalize to forward slashes for consistent matching.
-	relPath = filepath.ToSlash(relPath)
-
-	parts := strings.SplitN(relPath, "/", 2)
-	if len(parts) == 0 {
-		return false
-	}
-	topDir := parts[0]
-
-	// Direct category match.
-	if includedCategories()[topDir] {
-		return true
-	}
-
-	// Special case: reference/glossary only.
-	if topDir == "reference" {
-		return strings.HasPrefix(relPath, "reference/glossary")
-	}
-
-	return false
-}
-
 // parseFrontmatter extracts YAML frontmatter from content.
 func parseFrontmatter(content string) (frontmatter, error) {
 	var fm frontmatter
@@ -329,7 +293,7 @@ func processEntry(
 	}
 
 	// Only include files from allowed categories.
-	if !isIncluded(rel) {
+	if !docs.IsIncludedDocsPath(rel) {
 		return nil
 	}
 

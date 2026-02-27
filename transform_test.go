@@ -397,8 +397,18 @@ func TestTransform_ConvertInternalLinks(t *testing.T) {
 		},
 		{
 			name:    "all included categories become plain text",
-			content: "[a](https://grafana.com/docs/k6/v1.5.x/javascript-api/foo) [b](https://grafana.com/docs/k6/v1.5.x/using-k6/bar) [c](https://grafana.com/docs/k6/v1.5.x/using-k6-browser/baz) [d](https://grafana.com/docs/k6/v1.5.x/testing-guides/qux) [e](https://grafana.com/docs/k6/v1.5.x/examples/quux) [f](https://grafana.com/docs/k6/v1.5.x/results-output/corge) [g](https://grafana.com/docs/k6/v1.5.x/reference/grault)",
-			want:    "a b c d e f g",
+			content: "[a](https://grafana.com/docs/k6/v1.5.x/javascript-api/foo) [b](https://grafana.com/docs/k6/v1.5.x/using-k6/bar) [c](https://grafana.com/docs/k6/v1.5.x/using-k6-browser/baz) [d](https://grafana.com/docs/k6/v1.5.x/testing-guides/qux) [e](https://grafana.com/docs/k6/v1.5.x/examples/quux) [f](https://grafana.com/docs/k6/v1.5.x/results-output/corge)",
+			want:    "a b c d e f",
+		},
+		{
+			name:    "reference/glossary link becomes plain text",
+			content: "[g](https://grafana.com/docs/k6/v1.5.x/reference/glossary)",
+			want:    "g",
+		},
+		{
+			name:    "reference non-glossary link stripped by catch-all",
+			content: "[g](https://grafana.com/docs/k6/v1.5.x/reference/grault)",
+			want:    "g",
 		},
 	}
 
