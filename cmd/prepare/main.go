@@ -261,83 +261,7 @@ func walkAndProcess(versionRoot, markdownDir, k6Version string, sharedContent ma
 	var slugOrder []string
 
 	err := filepath.WalkDir(versionRoot, func(path string, d fs.DirEntry, err error) error {
-		if err != nil {
-			return err
-		}
-
-		rel, err := filepath.Rel(versionRoot, path)
-		if err != nil {
-			return err
-		}
-		rel = filepath.ToSlash(rel)
-
-		// Skip the shared directory entirely.
-		if d.IsDir() && rel == "shared" {
-			return filepath.SkipDir
-		}
-
-		// Skip non-markdown files and directories.
-		if d.IsDir() || !strings.HasSuffix(rel, ".md") {
-			return nil
-		}
-
-		// Skip the version root _index.md.
-		if rel == "_index.md" {
-			return nil
-		}
-
-		// Only include files from allowed categories.
-		if !isIncluded(rel) {
-			return nil
-		}
-
-		content, err := os.ReadFile(path)
-		if err != nil {
-			return fmt.Errorf("read %s: %w", rel, err)
-		}
-
-		fm, err := parseFrontmatter(string(content))
-		if err != nil {
-			log.Printf("warning: %s: %v", rel, err)
-		}
-
-		transformed := docs.PrepareTransform(string(content), sharedContent)
-
-		slug := slugFromRelPath(rel)
-		category := categoryFromSlug(slug)
-		isIndex := filepath.Base(path) == "_index.md"
-
-		// Write transformed markdown.
-		outPath := filepath.Join(markdownDir, rel)
-		if err := os.MkdirAll(filepath.Dir(outPath), 0o755); err != nil {
-			return fmt.Errorf("mkdir %s: %w", filepath.Dir(outPath), err)
-		}
-		if err := os.WriteFile(outPath, []byte(transformed), 0o644); err != nil {
-			return fmt.Errorf("write %s: %w", outPath, err)
-		}
-
-		sec := docs.Section{
-			Slug:        slug,
-			RelPath:     rel,
-			Title:       fm.Title,
-			Description: fm.Description,
-			Weight:      fm.Weight,
-			Category:    category,
-			IsIndex:     isIndex,
-		}
-
-		// Handle slug collisions: prefer _index.md over plain .md files.
-		if existing, ok := sectionMap[slug]; ok {
-			if isIndex && !existing.IsIndex {
-				sectionMap[slug] = sec
-			}
-			// Otherwise keep the existing entry.
-		} else {
-			slugOrder = append(slugOrder, slug)
-			sectionMap[slug] = sec
-		}
-
-		return nil
+		return processEntry(path, d, err, versionRoot, markdownDir, sharedContent, sectionMap, &slugOrder)
 	})
 
 	// Rebuild the slice in walk order.
@@ -347,6 +271,92 @@ func walkAndProcess(versionRoot, markdownDir, k6Version string, sharedContent ma
 	}
 
 	return sections, err
+}
+
+func processEntry(
+	path string, d fs.DirEntry, err error,
+	versionRoot, markdownDir string,
+	sharedContent map[string]string,
+	sectionMap map[string]docs.Section,
+	slugOrder *[]string,
+) error {
+	if err != nil {
+		return err
+	}
+
+	rel, err := filepath.Rel(versionRoot, path)
+	if err != nil {
+		return err
+	}
+	rel = filepath.ToSlash(rel)
+
+	if d.IsDir() {
+		if rel == "shared" {
+			return filepath.SkipDir
+		}
+		return nil
+	}
+
+	if !strings.HasSuffix(rel, ".md") {
+		return nil
+	}
+
+	// Skip the version root _index.md.
+	if rel == "_index.md" {
+		return nil
+	}
+
+	// Only include files from allowed categories.
+	if !isIncluded(rel) {
+		return nil
+	}
+
+	content, err := os.ReadFile(path)
+	if err != nil {
+		return fmt.Errorf("read %s: %w", rel, err)
+	}
+
+	fm, err := parseFrontmatter(string(content))
+	if err != nil {
+		log.Printf("warning: %s: %v", rel, err)
+	}
+
+	transformed := docs.PrepareTransform(string(content), sharedContent)
+
+	slug := slugFromRelPath(rel)
+	category := categoryFromSlug(slug)
+	isIndex := filepath.Base(path) == "_index.md"
+
+	// Write transformed markdown.
+	outPath := filepath.Join(markdownDir, rel)
+	if err := os.MkdirAll(filepath.Dir(outPath), 0o755); err != nil {
+		return fmt.Errorf("mkdir %s: %w", filepath.Dir(outPath), err)
+	}
+	if err := os.WriteFile(outPath, []byte(transformed), 0o644); err != nil {
+		return fmt.Errorf("write %s: %w", outPath, err)
+	}
+
+	sec := docs.Section{
+		Slug:        slug,
+		RelPath:     rel,
+		Title:       fm.Title,
+		Description: fm.Description,
+		Weight:      fm.Weight,
+		Category:    category,
+		IsIndex:     isIndex,
+	}
+
+	// Handle slug collisions: prefer _index.md over plain .md files.
+	if existing, ok := sectionMap[slug]; ok {
+		if isIndex && !existing.IsIndex {
+			sectionMap[slug] = sec
+		}
+	} else {
+		*slugOrder = append(*slugOrder, slug)
+		sectionMap[slug] = sec
+	}
+
+	return nil
 }
 
 // populateChildren sets the Children field for each _index section.

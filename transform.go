@@ -12,7 +12,7 @@ var (
 	reSection      = regexp.MustCompile(`\{\{<\s*/?\s*section\b[^>]*>\}\}`)
 	reAnyShortcode = regexp.MustCompile(`\{\{<\s*/?\s*[^>]+>\}\}`)
 	reComponentTag = regexp.MustCompile(`</?[A-Z][a-z][a-zA-Z]*[^>]*>`) // <Glossary>, </DescriptionList>, etc.
-	reBrTag        = regexp.MustCompile(`<br\s*/?>`)               // <br/>, <br />, <br>
+	reBrTag        = regexp.MustCompile(`<br\s*/?>`)                    // <br/>, <br />, <br>
 	reHTMLComment  = regexp.MustCompile(`<!--[\s\S]*?-->`)
 	reExtraNewline = regexp.MustCompile(`\n{3,}`)
 
@@ -70,12 +70,12 @@ func PrepareTransform(content string, sharedContent map[string]string) string {
 //  2. Convert admonitions to blockquotes
 //  3. Strip section tags
 //  4. Strip remaining shortcodes
-//  4a. Strip React/MDX component tags (PascalCase)
-//  4b. Strip <br/> tags
+//     4a. Strip React/MDX component tags (PascalCase)
+//     4b. Strip <br/> tags
 //  5. Replace <K6_VERSION> with version
 //  6. Convert internal docs links to plain text
-//  6a. Strip remaining markdown image links
-//  6b. Strip remaining markdown links
+//     6a. Strip remaining markdown image links
+//     6b. Strip remaining markdown links
 //  7. Strip HTML comments
 //  8. Strip YAML frontmatter
 //  9. Normalize whitespace

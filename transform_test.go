@@ -200,7 +200,7 @@ Line three.
 			want: "> **Note:** Line one.\n> Line two.\n> Line three.\n",
 		},
 		{
-			name: "admonition with surrounding content",
+			name:    "admonition with surrounding content",
 			content: "Before\n\n{{< admonition type=\"note\" >}}\n\nImportant thing.\n\n{{< /admonition >}}\n\nAfter",
 			want:    "Before\n\n> **Note:** Important thing.\n\nAfter",
 		},

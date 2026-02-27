@@ -206,18 +206,9 @@ func writeFile(t *testing.T, path, content string) {
 	}
 }
 
-func TestRunWithMockDocs(t *testing.T) {
-	t.Parallel()
+func loadOutputIndex(t *testing.T, outputDir, version string) (docs.Index, map[string]docs.Section) {
+	t.Helper()
 
-	version := "v0.99.x"
-	docsPath := setupMockDocs(t, version)
-	outputDir := filepath.Join(t.TempDir(), "output")
-
-	if err := run(version, docsPath, outputDir); err != nil {
-		t.Fatalf("run: %v", err)
-	}
-
-	// Load and validate sections.json.
 	data, err := os.ReadFile(filepath.Join(outputDir, "sections.json"))
 	if err != nil {
 		t.Fatalf("read sections.json: %v", err)
@@ -232,11 +223,47 @@ func TestRunWithMockDocs(t *testing.T) {
 		t.Errorf("Version = %q, want %q", idx.Version, version)
 	}
 
-	// Build a slug map for easier assertions.
 	bySlug := make(map[string]docs.Section, len(idx.Sections))
 	for _, s := range idx.Sections {
 		bySlug[s.Slug] = s
 	}
+
+	return idx, bySlug
+}
+
+func assertNoExcludedCategories(t *testing.T, sections []docs.Section) {
+	t.Helper()
+
+	excluded := map[string]bool{
+		"get-started":      true,
+		"set-up":           true,
+		"extensions":       true,
+		"grafana-cloud-k6": true,
+		"release-notes":    true,
+		"k6-studio":        true,
+	}
+	for _, s := range sections {
+		if excluded[s.Category] {
+			t.Errorf("section %q has excluded category %q", s.Slug, s.Category)
+		}
+		if s.Category == "reference" && s.Slug != "reference/glossary" {
+			t.Errorf("reference should only include glossary, found %q", s.Slug)
+		}
+	}
+}
+
+func TestRunWithMockDocs(t *testing.T) {
+	t.Parallel()
+
+	version := "v0.99.x"
+	docsPath := setupMockDocs(t, version)
+	outputDir := filepath.Join(t.TempDir(), "output")
+
+	if err := run(version, docsPath, outputDir); err != nil {
+		t.Fatalf("run: %v", err)
+	}
+
+	_, bySlug := loadOutputIndex(t, outputDir, version)
 
 	// Check included sections exist.
 	expectedSlugs := []string{
@@ -270,85 +297,63 @@ func TestRunWithMockDocs(t *testing.T) {
 
 	// Verify metadata.
 	t.Run("javascript-api metadata", func(t *testing.T) {
-		s := bySlug["javascript-api"]
-		if s.Title != "JavaScript API" {
-			t.Errorf("Title = %q, want %q", s.Title, "JavaScript API")
-		}
-		if s.Category != "javascript-api" {
-			t.Errorf("Category = %q, want %q", s.Category, "javascript-api")
-		}
-		if !s.IsIndex {
-			t.Error("IsIndex should be true")
-		}
-		if s.Weight != 3 {
-			t.Errorf("Weight = %d, want 3", s.Weight)
-		}
+		requireSection(t, bySlug["javascript-api"], "JavaScript API", "javascript-api", true, 3)
 	})
 
 	t.Run("get metadata", func(t *testing.T) {
-		s := bySlug["javascript-api/k6-http/get"]
-		if s.Title != "get( url, [params] )" {
-			t.Errorf("Title = %q, want %q", s.Title, "get( url, [params] )")
-		}
-		if s.Category != "javascript-api" {
-			t.Errorf("Category = %q, want %q", s.Category, "javascript-api")
-		}
-		if s.IsIndex {
-			t.Error("IsIndex should be false")
-		}
-		if s.Weight != 10 {
-			t.Errorf("Weight = %d, want 10", s.Weight)
-		}
+		requireSection(t, bySlug["javascript-api/k6-http/get"], "get( url, [params] )", "javascript-api", false, 10)
 	})
 
 	// Verify children population.
 	t.Run("k6-http children", func(t *testing.T) {
-		s := bySlug["javascript-api/k6-http"]
-		if len(s.Children) != 2 {
-			t.Fatalf("Children count = %d, want 2", len(s.Children))
-		}
 		// get (weight 10) should come before post (weight 20).
-		if s.Children[0] != "javascript-api/k6-http/get" {
-			t.Errorf("Children[0] = %q, want %q", s.Children[0], "javascript-api/k6-http/get")
-		}
-		if s.Children[1] != "javascript-api/k6-http/post" {
-			t.Errorf("Children[1] = %q, want %q", s.Children[1], "javascript-api/k6-http/post")
-		}
+		requireChildren(t, bySlug["javascript-api/k6-http"],
+			"javascript-api/k6-http/get", "javascript-api/k6-http/post")
 	})
 
 	t.Run("javascript-api children", func(t *testing.T) {
-		s := bySlug["javascript-api"]
-		if len(s.Children) != 1 {
-			t.Fatalf("Children count = %d, want 1 (only k6-http)", len(s.Children))
-		}
-		if s.Children[0] != "javascript-api/k6-http" {
-			t.Errorf("Children[0] = %q, want %q", s.Children[0], "javascript-api/k6-http")
-		}
+		requireChildren(t, bySlug["javascript-api"], "javascript-api/k6-http")
 	})
 
 	t.Run("using-k6 children", func(t *testing.T) {
-		s := bySlug["using-k6"]
-		if len(s.Children) != 2 {
-			t.Fatalf("Children count = %d, want 2", len(s.Children))
-		}
 		// checks (weight 400) before thresholds (weight 500).
-		if s.Children[0] != "using-k6/checks" {
-			t.Errorf("Children[0] = %q, want %q", s.Children[0], "using-k6/checks")
-		}
-		if s.Children[1] != "using-k6/thresholds" {
-			t.Errorf("Children[1] = %q, want %q", s.Children[1], "using-k6/thresholds")
-		}
+		requireChildren(t, bySlug["using-k6"], "using-k6/checks", "using-k6/thresholds")
 	})
 
 	t.Run("leaf node has empty children", func(t *testing.T) {
-		s := bySlug["using-k6/checks"]
-		if s.Children == nil {
-			t.Error("Children should be non-nil empty slice")
-		}
-		if len(s.Children) != 0 {
-			t.Errorf("Children count = %d, want 0", len(s.Children))
-		}
+		requireChildren(t, bySlug["using-k6/checks"])
 	})
+}
+
+func requireSection(t *testing.T, s docs.Section, title, category string, isIndex bool, weight int) {
+	t.Helper()
+	if s.Title != title {
+		t.Errorf("Title = %q, want %q", s.Title, title)
+	}
+	if s.Category != category {
+		t.Errorf("Category = %q, want %q", s.Category, category)
+	}
+	if s.IsIndex != isIndex {
+		t.Errorf("IsIndex = %v, want %v", s.IsIndex, isIndex)
+	}
+	if s.Weight != weight {
+		t.Errorf("Weight = %d, want %d", s.Weight, weight)
+	}
+}
+
+func requireChildren(t *testing.T, s docs.Section, want ...string) {
+	t.Helper()
+	if s.Children == nil {
+		t.Fatal("Children should be non-nil (empty slice, not nil)")
+	}
+	if len(s.Children) != len(want) {
+		t.Fatalf("Children count = %d, want %d", len(s.Children), len(want))
+	}
+	for i, w := range want {
+		if s.Children[i] != w {
+			t.Errorf("Children[%d] = %q, want %q", i, s.Children[i], w)
+		}
+	}
 }
 
 func TestTransformedMarkdownContent(t *testing.T) {
@@ -778,30 +783,11 @@ func TestRunWithRealDocs(t *testing.T) {
 		t.Fatalf("run with real docs: %v", err)
 	}
 
-	// Validate sections.json.
-	data, err := os.ReadFile(filepath.Join(outputDir, "sections.json"))
-	if err != nil {
-		t.Fatalf("read sections.json: %v", err)
-	}
-
-	var idx docs.Index
-	if err := json.Unmarshal(data, &idx); err != nil {
-		t.Fatalf("parse sections.json: %v", err)
-	}
-
-	if idx.Version != version {
-		t.Errorf("Version = %q, want %q", idx.Version, version)
-	}
+	idx, bySlug := loadOutputIndex(t, outputDir, version)
 
 	// Should have a reasonable number of sections.
 	if len(idx.Sections) < 50 {
 		t.Errorf("expected at least 50 sections, got %d", len(idx.Sections))
-	}
-
-	// Build slug map.
-	bySlug := make(map[string]docs.Section, len(idx.Sections))
-	for _, s := range idx.Sections {
-		bySlug[s.Slug] = s
 	}
 
 	// Spot-check some expected sections.
@@ -819,28 +805,7 @@ func TestRunWithRealDocs(t *testing.T) {
 		}
 	}
 
-	// Verify excluded categories are absent.
-	for _, s := range idx.Sections {
-		cat := s.Category
-		excluded := map[string]bool{
-			"get-started":      true,
-			"set-up":           true,
-			"extensions":       true,
-			"grafana-cloud-k6": true,
-			"release-notes":    true,
-			"k6-studio":        true,
-		}
-		if excluded[cat] {
-			t.Errorf("section %q has excluded category %q", s.Slug, cat)
-		}
-	}
-
-	// Verify reference category only has glossary.
-	for _, s := range idx.Sections {
-		if s.Category == "reference" && s.Slug != "reference/glossary" {
-			t.Errorf("reference should only include glossary, found %q", s.Slug)
-		}
-	}
+	assertNoExcludedCategories(t, idx.Sections)
 
 	// Check that a prepared markdown file exists. Bundle content is raw-ish:
 	// shared shortcodes resolved but frontmatter/other shortcodes preserved

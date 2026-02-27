@@ -92,49 +92,19 @@ func TestSearch(t *testing.T) {
 	}
 
 	t.Run("match in title", func(t *testing.T) {
-		results := idx.Search("installation", nil)
-		if len(results) != 1 {
-			t.Fatalf("Search(installation): got %d results, want 1", len(results))
-		}
-		if results[0].Slug != "installation" {
-			t.Errorf("Slug = %q, want %q", results[0].Slug, "installation")
-		}
+		requireSingleResult(t, idx.Search("installation", nil), "installation")
 	})
 
 	t.Run("case insensitive", func(t *testing.T) {
-		results := idx.Search("GETTING STARTED", nil)
-		if len(results) == 0 {
-			t.Fatal("Search(GETTING STARTED): expected matches, got none")
-		}
-		foundParent := false
-		for _, s := range results {
-			if s.Slug == "getting-started" {
-				foundParent = true
-			}
-		}
-		if !foundParent {
-			t.Error("Search: expected getting-started in results")
-		}
+		requireContainsSlug(t, idx.Search("GETTING STARTED", nil), "getting-started")
 	})
 
 	t.Run("match in description", func(t *testing.T) {
-		results := idx.Search("export test results", nil)
-		if len(results) != 1 {
-			t.Fatalf("Search(export test results): got %d results, want 1", len(results))
-		}
-		if results[0].Slug != "results" {
-			t.Errorf("Slug = %q, want %q", results[0].Slug, "results")
-		}
+		requireSingleResult(t, idx.Search("export test results", nil), "results")
 	})
 
 	t.Run("match via readContent callback", func(t *testing.T) {
-		results := idx.Search("protocol buffers", readContent)
-		if len(results) != 1 {
-			t.Fatalf("Search(protocol buffers): got %d results, want 1", len(results))
-		}
-		if results[0].Slug != "grpc" {
-			t.Errorf("Slug = %q, want %q", results[0].Slug, "grpc")
-		}
+		requireSingleResult(t, idx.Search("protocol buffers", readContent), "grpc")
 	})
 
 	t.Run("no match", func(t *testing.T) {
@@ -152,34 +122,36 @@ func TestSearch(t *testing.T) {
 	})
 
 	t.Run("fuzzy: spaces match concatenated title", func(t *testing.T) {
-		results := idx.Search("close context", nil)
-		if len(results) != 1 {
-			t.Fatalf("Search(close context): got %d results, want 1", len(results))
-		}
-		if results[0].Slug != "browser/closecontext" {
-			t.Errorf("Slug = %q, want %q", results[0].Slug, "browser/closecontext")
-		}
+		requireSingleResult(t, idx.Search("close context", nil), "browser/closecontext")
 	})
 
 	t.Run("fuzzy: dashes match concatenated title", func(t *testing.T) {
-		results := idx.Search("close-context", nil)
-		if len(results) != 1 {
-			t.Fatalf("Search(close-context): got %d results, want 1", len(results))
-		}
-		if results[0].Slug != "browser/closecontext" {
-			t.Errorf("Slug = %q, want %q", results[0].Slug, "browser/closecontext")
-		}
+		requireSingleResult(t, idx.Search("close-context", nil), "browser/closecontext")
 	})
 
 	t.Run("fuzzy: spaces match dashed slug", func(t *testing.T) {
-		results := idx.Search("http debugging", nil)
-		if len(results) != 1 {
-			t.Fatalf("Search(http debugging): got %d results, want 1", len(results))
-		}
-		if results[0].Slug != "http-debugging" {
-			t.Errorf("Slug = %q, want %q", results[0].Slug, "http-debugging")
-		}
+		requireSingleResult(t, idx.Search("http debugging", nil), "http-debugging")
 	})
+}
+
+func requireSingleResult(t *testing.T, results []*Section, wantSlug string) {
+	t.Helper()
+	if len(results) != 1 {
+		t.Fatalf("got %d results, want 1", len(results))
+	}
+	if results[0].Slug != wantSlug {
+		t.Errorf("Slug = %q, want %q", results[0].Slug, wantSlug)
+	}
+}
+
+func requireContainsSlug(t *testing.T, results []*Section, wantSlug string) {
+	t.Helper()
+	for _, s := range results {
+		if s.Slug == wantSlug {
+			return
+		}
+	}
+	t.Errorf("expected %q in results, got %d results", wantSlug, len(results))
 }
 
 func TestChildren(t *testing.T) {

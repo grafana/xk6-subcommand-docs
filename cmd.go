@@ -19,12 +19,7 @@ func newCmd(gs *state.GlobalState) *cobra.Command {
 }
 
 func newDocsCmd(gs *state.GlobalState, stdout io.Writer) *cobra.Command {
-	var (
-		listFlag    bool
-		allFlag     bool
-		versionFlag string
-		cacheDirFlg string
-	)
+	var opts docsOpts
 
 	cmd := &cobra.Command{
 		Use:   "docs [topic] [subtopic...]",
@@ -32,99 +27,119 @@ func newDocsCmd(gs *state.GlobalState, stdout io.Writer) *cobra.Command {
 		Long:  "Access k6 documentation from the command line.",
 		Args:  cobra.ArbitraryArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			version, cacheDir, idx, err := setup(versionFlag, cacheDirFlg)
-			if err != nil {
-				return err
-			}
-
-			isTTY := term.IsTerminal(int(os.Stdout.Fd()))
-			if gs != nil {
-				if isTTY {
-					gs.Logger.Debug("docs: interactive mode (stdout is TTY)")
-				} else {
-					gs.Logger.Debug("docs: agent mode (stdout is not a TTY)")
-				}
-			}
-
-			cfg, cfgErr := loadConfig()
-			if cfgErr != nil && gs != nil {
-				gs.Logger.Warnf("docs: ignoring invalid config: %v", cfgErr)
-			}
-
-			baseW := cmd.OutOrStdout()
-			var buf *bytes.Buffer
-			w := io.Writer(baseW)
-
-			if cfg.Renderer != "" && isTTY {
-				buf = &bytes.Buffer{}
-				w = buf
-			}
-
-			if allFlag {
-				printAll(w, idx, cacheDir, version)
-				return pipeRenderer(buf, os.Stdout, baseW, cfg.Renderer)
-			}
-
-			if listFlag && len(args) == 0 {
-				printTopLevelList(w, idx)
-				return pipeRenderer(buf, os.Stdout, baseW, cfg.Renderer)
-			}
-
-			if len(args) == 0 {
-				printTOC(w, idx, version)
-				return pipeRenderer(buf, os.Stdout, baseW, cfg.Renderer)
-			}
-
-			if args[0] == "best-practices" {
-				if err := printBestPractices(w, cacheDir, version); err != nil {
-					return err
-				}
-				return pipeRenderer(buf, os.Stdout, baseW, cfg.Renderer)
-			}
-
-			slug := ResolveWithLookup(args, func(s string) bool {
-				_, ok := idx.Lookup(s)
-				return ok
-			})
-
-			sec, ok := idx.Lookup(slug)
-			if !ok {
-				return fmt.Errorf("topic not found: %s", strings.Join(args, " "))
-			}
-
-			if listFlag {
-				printList(w, idx, slug)
-				return pipeRenderer(buf, os.Stdout, baseW, cfg.Renderer)
-			}
-
-			printSection(w, idx, sec, cacheDir, version)
-			return pipeRenderer(buf, os.Stdout, baseW, cfg.Renderer)
+			return runDocs(gs, cmd, args, &opts)
 		},
 	}
 
-	cmd.Flags().BoolVar(&listFlag, "list", false, "List subtopics instead of showing content")
-	cmd.Flags().BoolVar(&allFlag, "all", false, "Print all documentation")
-	cmd.PersistentFlags().StringVar(&versionFlag, "version", "", "Override k6 version for docs lookup")
-	cmd.PersistentFlags().StringVar(&cacheDirFlg, "cache-dir", "", "Override cache directory")
+	cmd.Flags().BoolVar(&opts.list, "list", false, "List subtopics instead of showing content")
+	cmd.Flags().BoolVar(&opts.all, "all", false, "Print all documentation")
+	cmd.PersistentFlags().StringVar(&opts.version, "version", "", "Override k6 version for docs lookup")
+	cmd.PersistentFlags().StringVar(&opts.cacheDir, "cache-dir", "", "Override cache directory")
 
 	searchCmd := &cobra.Command{
 		Use:   "search <term>",
 		Short: "Search documentation",
 		Args:  cobra.MinimumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			version, cacheDir, idx, err := setup(versionFlag, cacheDirFlg)
-			if err != nil {
-				return err
-			}
-
-			term := strings.Join(args, " ")
-			printSearch(cmd.OutOrStdout(), idx, term, cacheDir, version)
-			return nil
+			return runSearch(cmd, args, &opts)
 		},
 	}
 	cmd.AddCommand(searchCmd)
 
 	return cmd
+}
+
+type docsOpts struct {
+	list     bool
+	all      bool
+	version  string
+	cacheDir string
+}
+
+func runSearch(cmd *cobra.Command, args []string, opts *docsOpts) error {
+	version, cacheDir, idx, err := setup(opts.version, opts.cacheDir)
+	if err != nil {
+		return err
+	}
+
+	term := strings.Join(args, " ")
+	printSearch(cmd.OutOrStdout(), idx, term, cacheDir, version)
+	return nil
+}
+
+func runDocs(gs *state.GlobalState, cmd *cobra.Command, args []string, opts *docsOpts) error {
+	version, cacheDir, idx, err := setup(opts.version, opts.cacheDir)
+	if err != nil {
+		return err
+	}
+
+	isTTY := term.IsTerminal(int(os.Stdout.Fd()))
+	logMode(gs, isTTY)
+
+	cfg, cfgErr := loadConfig()
+	if cfgErr != nil && gs != nil {
+		gs.Logger.Warnf("docs: ignoring invalid config: %v", cfgErr)
+	}
+
+	baseW := cmd.OutOrStdout()
+	var buf *bytes.Buffer
+	w := io.Writer(baseW)
+
+	if cfg.Renderer != "" && isTTY {
+		buf = &bytes.Buffer{}
+		w = buf
+	}
+
+	if opts.all {
+		printAll(w, idx, cacheDir, version)
+		return pipeRenderer(buf, os.Stdout, baseW, cfg.Renderer)
+	}
+
+	if opts.list && len(args) == 0 {
+		printTopLevelList(w, idx)
+		return pipeRenderer(buf, os.Stdout, baseW, cfg.Renderer)
+	}
+
+	if len(args) == 0 {
+		printTOC(w, idx, version)
+		return pipeRenderer(buf, os.Stdout, baseW, cfg.Renderer)
+	}
+
+	if args[0] == "best-practices" {
+		if err := printBestPractices(w, cacheDir, version); err != nil {
+			return err
+		}
+		return pipeRenderer(buf, os.Stdout, baseW, cfg.Renderer)
+	}
+
+	slug := ResolveWithLookup(args, func(s string) bool {
+		_, ok := idx.Lookup(s)
+		return ok
+	})
+
+	sec, ok := idx.Lookup(slug)
+	if !ok {
+		return fmt.Errorf("topic not found: %s", strings.Join(args, " "))
+	}
+
+	if opts.list {
+		printList(w, idx, slug)
+		return pipeRenderer(buf, os.Stdout, baseW, cfg.Renderer)
+	}
+
+	printSection(w, idx, sec, cacheDir, version)
+	return pipeRenderer(buf, os.Stdout, baseW, cfg.Renderer)
+}
+
+func logMode(gs *state.GlobalState, isTTY bool) {
+	if gs == nil {
+		return
+	}
+	if isTTY {
+		gs.Logger.Debug("docs: interactive mode (stdout is TTY)")
+	} else {
+		gs.Logger.Debug("docs: agent mode (stdout is not a TTY)")
+	}
 }
 
 func pipeRenderer(buf *bytes.Buffer, stdout, fallback io.Writer, renderer string) error {

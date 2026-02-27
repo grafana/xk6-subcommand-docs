@@ -116,14 +116,14 @@ func setupTestCache(t *testing.T) (string, *Index) {
 	// but frontmatter and other shortcodes still present), matching how the
 	// prepare command now generates cached content.
 	mdFiles := map[string]string{
-		"javascript-api/_index.md":          "---\ntitle: 'JavaScript API'\n---\n# JavaScript API\n\nThe JavaScript API reference.\n",
-		"javascript-api/k6-http/_index.md":  "---\ntitle: 'k6/http'\n---\n# k6/http\n\nThe HTTP module.\n",
-		"javascript-api/k6-http/get.md":     "---\ntitle: 'get'\n---\n## http.get(url)\n\nMake a GET request.\n",
-		"javascript-api/k6-http/post.md":    "---\ntitle: 'post'\n---\n## http.post(url, body)\n\nMake a POST request.\n",
-		"using-k6/_index.md":                "---\ntitle: 'Using k6'\n---\n# Using k6\n\nGuide to using k6.\n",
-		"using-k6/scenarios.md":             "---\ntitle: 'Scenarios'\n---\n# Scenarios\n\nScenarios let you configure execution.\n",
-		"examples/_index.md":                "---\ntitle: 'Examples'\n---\n# Examples\n\nExample scripts.\n",
-		"examples/websockets.md":            "---\ntitle: 'WebSockets'\n---\n# WebSockets\n\nWebSocket example content.\n",
+		"javascript-api/_index.md":         "---\ntitle: 'JavaScript API'\n---\n# JavaScript API\n\nThe JavaScript API reference.\n",
+		"javascript-api/k6-http/_index.md": "---\ntitle: 'k6/http'\n---\n# k6/http\n\nThe HTTP module.\n",
+		"javascript-api/k6-http/get.md":    "---\ntitle: 'get'\n---\n## http.get(url)\n\nMake a GET request.\n",
+		"javascript-api/k6-http/post.md":   "---\ntitle: 'post'\n---\n## http.post(url, body)\n\nMake a POST request.\n",
+		"using-k6/_index.md":               "---\ntitle: 'Using k6'\n---\n# Using k6\n\nGuide to using k6.\n",
+		"using-k6/scenarios.md":            "---\ntitle: 'Scenarios'\n---\n# Scenarios\n\nScenarios let you configure execution.\n",
+		"examples/_index.md":               "---\ntitle: 'Examples'\n---\n# Examples\n\nExample scripts.\n",
+		"examples/websockets.md":           "---\ntitle: 'WebSockets'\n---\n# WebSockets\n\nWebSocket example content.\n",
 	}
 
 	for relPath, content := range mdFiles {
@@ -569,21 +569,7 @@ func TestPrintSearch(t *testing.T) {
 		var buf bytes.Buffer
 		// Search for "k6" which should match multiple groups.
 		printSearch(&buf, idx, "k6", cacheDir, "v0.55.x")
-		out := buf.String()
-
-		// Verify groups appear in alphabetical order.
-		lines := strings.Split(out, "\n")
-		var groupHeaders []string
-		for _, line := range lines {
-			if strings.HasSuffix(line, ":") || (strings.Contains(line, ":") && !strings.HasPrefix(line, " ") && !strings.HasPrefix(line, "Results")) {
-				groupHeaders = append(groupHeaders, line)
-			}
-		}
-		for i := 1; i < len(groupHeaders); i++ {
-			if groupHeaders[i] < groupHeaders[i-1] {
-				t.Errorf("printSearch: groups not sorted: %q before %q", groupHeaders[i-1], groupHeaders[i])
-			}
-		}
+		checkGroupsSorted(t, buf.String())
 	})
 
 	t.Run("no results", func(t *testing.T) {
@@ -748,52 +734,35 @@ func TestPrintAll(t *testing.T) {
 func TestCommandIntegration(t *testing.T) {
 	cacheDir, _ := setupTestCache(t)
 
-	t.Run("no args shows TOC", func(t *testing.T) {
+	run := func(t *testing.T, args ...string) string {
+		t.Helper()
 		cmd := newCmd(nil)
 		var buf bytes.Buffer
 		cmd.SetOut(&buf)
 		cmd.SetErr(&buf)
-		cmd.SetArgs([]string{"--cache-dir", cacheDir, "--version", "v0.55.x"})
-
+		cmd.SetArgs(append([]string{"--cache-dir", cacheDir, "--version", "v0.55.x"}, args...))
 		if err := cmd.Execute(); err != nil {
 			t.Fatalf("cmd.Execute: %v", err)
 		}
+		return buf.String()
+	}
 
-		out := buf.String()
+	t.Run("no args shows TOC", func(t *testing.T) {
+		out := run(t)
 		if !strings.Contains(out, "k6 Documentation (v0.55.x)") {
 			t.Error("integration TOC: missing header")
 		}
 	})
 
 	t.Run("topic arg shows section", func(t *testing.T) {
-		cmd := newCmd(nil)
-		var buf bytes.Buffer
-		cmd.SetOut(&buf)
-		cmd.SetErr(&buf)
-		cmd.SetArgs([]string{"--cache-dir", cacheDir, "--version", "v0.55.x", "using-k6", "scenarios"})
-
-		if err := cmd.Execute(); err != nil {
-			t.Fatalf("cmd.Execute: %v", err)
-		}
-
-		out := buf.String()
+		out := run(t, "using-k6", "scenarios")
 		if !strings.Contains(out, "Scenarios let you configure execution.") {
 			t.Error("integration section: missing content")
 		}
 	})
 
 	t.Run("--list flag without args shows top-level list", func(t *testing.T) {
-		cmd := newCmd(nil)
-		var buf bytes.Buffer
-		cmd.SetOut(&buf)
-		cmd.SetErr(&buf)
-		cmd.SetArgs([]string{"--cache-dir", cacheDir, "--version", "v0.55.x", "--list"})
-
-		if err := cmd.Execute(); err != nil {
-			t.Fatalf("cmd.Execute: %v", err)
-		}
-
-		out := buf.String()
+		out := run(t, "--list")
 		if !strings.Contains(out, "javascript-api") {
 			t.Error("integration --list no args: missing 'javascript-api'")
 		}
@@ -807,34 +776,14 @@ func TestCommandIntegration(t *testing.T) {
 	})
 
 	t.Run("--list flag with topic shows compact listing", func(t *testing.T) {
-		cmd := newCmd(nil)
-		var buf bytes.Buffer
-		cmd.SetOut(&buf)
-		cmd.SetErr(&buf)
-		cmd.SetArgs([]string{"--cache-dir", cacheDir, "--version", "v0.55.x", "--list", "javascript-api/k6-http"})
-
-		if err := cmd.Execute(); err != nil {
-			t.Fatalf("cmd.Execute: %v", err)
-		}
-
-		out := buf.String()
+		out := run(t, "--list", "javascript-api/k6-http")
 		if !strings.Contains(out, "get") {
 			t.Error("integration --list: missing 'get'")
 		}
 	})
 
 	t.Run("--all flag prints everything", func(t *testing.T) {
-		cmd := newCmd(nil)
-		var buf bytes.Buffer
-		cmd.SetOut(&buf)
-		cmd.SetErr(&buf)
-		cmd.SetArgs([]string{"--cache-dir", cacheDir, "--version", "v0.55.x", "--all"})
-
-		if err := cmd.Execute(); err != nil {
-			t.Fatalf("cmd.Execute: %v", err)
-		}
-
-		out := buf.String()
+		out := run(t, "--all")
 		if !strings.Contains(out, "k6 Documentation (v0.55.x)") {
 			t.Error("integration --all: missing header")
 		}
@@ -844,34 +793,14 @@ func TestCommandIntegration(t *testing.T) {
 	})
 
 	t.Run("search subcommand", func(t *testing.T) {
-		cmd := newCmd(nil)
-		var buf bytes.Buffer
-		cmd.SetOut(&buf)
-		cmd.SetErr(&buf)
-		cmd.SetArgs([]string{"--cache-dir", cacheDir, "--version", "v0.55.x", "search", "HTTP"})
-
-		if err := cmd.Execute(); err != nil {
-			t.Fatalf("cmd.Execute: %v", err)
-		}
-
-		out := buf.String()
+		out := run(t, "search", "HTTP")
 		if !strings.Contains(out, `Results for "HTTP"`) {
 			t.Error("integration search: missing results header")
 		}
 	})
 
 	t.Run("best-practices arg", func(t *testing.T) {
-		cmd := newCmd(nil)
-		var buf bytes.Buffer
-		cmd.SetOut(&buf)
-		cmd.SetErr(&buf)
-		cmd.SetArgs([]string{"--cache-dir", cacheDir, "--version", "v0.55.x", "best-practices"})
-
-		if err := cmd.Execute(); err != nil {
-			t.Fatalf("cmd.Execute: %v", err)
-		}
-
-		out := buf.String()
+		out := run(t, "best-practices")
 		if !strings.Contains(out, "Follow these best practices for k6.") {
 			t.Error("integration best-practices: missing content")
 		}
@@ -892,4 +821,21 @@ func TestCommandIntegration(t *testing.T) {
 			t.Errorf("integration unknown topic: error = %q, want to contain 'topic not found'", err.Error())
 		}
 	})
+}
+
+func checkGroupsSorted(t *testing.T, out string) {
+	t.Helper()
+
+	lines := strings.Split(out, "\n")
+	var groupHeaders []string
+	for _, line := range lines {
+		if strings.HasSuffix(line, ":") || (strings.Contains(line, ":") && !strings.HasPrefix(line, " ") && !strings.HasPrefix(line, "Results")) {
+			groupHeaders = append(groupHeaders, line)
+		}
+	}
+	for i := 1; i < len(groupHeaders); i++ {
+		if groupHeaders[i] < groupHeaders[i-1] {
+			t.Errorf("printSearch: groups not sorted: %q before %q", groupHeaders[i-1], groupHeaders[i])
+		}
+	}
 }
