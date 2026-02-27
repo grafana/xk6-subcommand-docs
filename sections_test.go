@@ -7,7 +7,11 @@ import (
 )
 
 func TestLoadIndex(t *testing.T) {
+	t.Parallel()
+
 	t.Run("valid fixture", func(t *testing.T) {
+		t.Parallel()
+
 		idx, err := LoadIndex("testdata")
 		if err != nil {
 			t.Fatalf("LoadIndex: unexpected error: %v", err)
@@ -21,6 +25,8 @@ func TestLoadIndex(t *testing.T) {
 	})
 
 	t.Run("missing file", func(t *testing.T) {
+		t.Parallel()
+
 		_, err := LoadIndex("/tmp/nonexistent-dir-xk6-test")
 		if err == nil {
 			t.Fatal("LoadIndex: expected error for missing directory, got nil")
@@ -28,6 +34,8 @@ func TestLoadIndex(t *testing.T) {
 	})
 
 	t.Run("invalid json", func(t *testing.T) {
+		t.Parallel()
+
 		dir := t.TempDir()
 		if err := os.WriteFile(filepath.Join(dir, "sections.json"), []byte("{bad json"), 0o644); err != nil {
 			t.Fatal(err)
@@ -40,9 +48,13 @@ func TestLoadIndex(t *testing.T) {
 }
 
 func TestLookup(t *testing.T) {
+	t.Parallel()
+
 	idx := mustLoadIndex(t)
 
 	t.Run("existing slug", func(t *testing.T) {
+		t.Parallel()
+
 		sec, ok := idx.Lookup("installation")
 		if !ok {
 			t.Fatal("Lookup(installation): not found")
@@ -56,6 +68,8 @@ func TestLookup(t *testing.T) {
 	})
 
 	t.Run("case insensitive", func(t *testing.T) {
+		t.Parallel()
+
 		sec, ok := idx.Lookup("Installation")
 		if !ok {
 			t.Fatal("Lookup(Installation): not found")
@@ -66,6 +80,8 @@ func TestLookup(t *testing.T) {
 	})
 
 	t.Run("missing slug", func(t *testing.T) {
+		t.Parallel()
+
 		_, ok := idx.Lookup("does-not-exist")
 		if ok {
 			t.Error("Lookup(does-not-exist): expected false, got true")
@@ -73,6 +89,8 @@ func TestLookup(t *testing.T) {
 	})
 
 	t.Run("empty slug", func(t *testing.T) {
+		t.Parallel()
+
 		_, ok := idx.Lookup("")
 		if ok {
 			t.Error("Lookup(''): expected false, got true")
@@ -81,6 +99,8 @@ func TestLookup(t *testing.T) {
 }
 
 func TestSearch(t *testing.T) {
+	t.Parallel()
+
 	idx := mustLoadIndex(t)
 
 	// readContent simulates body content for specific slugs.
@@ -92,22 +112,32 @@ func TestSearch(t *testing.T) {
 	}
 
 	t.Run("match in title", func(t *testing.T) {
+		t.Parallel()
+
 		requireSingleResult(t, idx.Search("installation", nil), "installation")
 	})
 
 	t.Run("case insensitive", func(t *testing.T) {
+		t.Parallel()
+
 		requireContainsSlug(t, idx.Search("GETTING STARTED", nil), "getting-started")
 	})
 
 	t.Run("match in description", func(t *testing.T) {
+		t.Parallel()
+
 		requireSingleResult(t, idx.Search("export test results", nil), "results")
 	})
 
 	t.Run("match via readContent callback", func(t *testing.T) {
+		t.Parallel()
+
 		requireSingleResult(t, idx.Search("protocol buffers", readContent), "grpc")
 	})
 
 	t.Run("no match", func(t *testing.T) {
+		t.Parallel()
+
 		results := idx.Search("zzzznotfound", readContent)
 		if len(results) != 0 {
 			t.Errorf("Search(zzzznotfound): got %d results, want 0", len(results))
@@ -115,6 +145,8 @@ func TestSearch(t *testing.T) {
 	})
 
 	t.Run("empty term", func(t *testing.T) {
+		t.Parallel()
+
 		results := idx.Search("", nil)
 		if len(results) != 0 {
 			t.Errorf("Search(''): got %d results, want 0", len(results))
@@ -122,14 +154,20 @@ func TestSearch(t *testing.T) {
 	})
 
 	t.Run("fuzzy: spaces match concatenated title", func(t *testing.T) {
+		t.Parallel()
+
 		requireSingleResult(t, idx.Search("close context", nil), "browser/closecontext")
 	})
 
 	t.Run("fuzzy: dashes match concatenated title", func(t *testing.T) {
+		t.Parallel()
+
 		requireSingleResult(t, idx.Search("close-context", nil), "browser/closecontext")
 	})
 
 	t.Run("fuzzy: spaces match dashed slug", func(t *testing.T) {
+		t.Parallel()
+
 		requireSingleResult(t, idx.Search("http debugging", nil), "http-debugging")
 	})
 }
@@ -155,9 +193,13 @@ func requireContainsSlug(t *testing.T, results []*Section, wantSlug string) {
 }
 
 func TestChildren(t *testing.T) {
+	t.Parallel()
+
 	idx := mustLoadIndex(t)
 
 	t.Run("parent with children", func(t *testing.T) {
+		t.Parallel()
+
 		children := idx.Children("getting-started")
 		if len(children) != 2 {
 			t.Fatalf("Children(getting-started): got %d, want 2", len(children))
@@ -172,6 +214,8 @@ func TestChildren(t *testing.T) {
 	})
 
 	t.Run("parent with no children", func(t *testing.T) {
+		t.Parallel()
+
 		children := idx.Children("results")
 		if len(children) != 0 {
 			t.Errorf("Children(results): got %d, want 0", len(children))
@@ -179,6 +223,8 @@ func TestChildren(t *testing.T) {
 	})
 
 	t.Run("nonexistent slug", func(t *testing.T) {
+		t.Parallel()
+
 		children := idx.Children("nope")
 		if children != nil {
 			t.Errorf("Children(nope): expected nil, got %v", children)
@@ -186,6 +232,8 @@ func TestChildren(t *testing.T) {
 	})
 
 	t.Run("protocols children sorted by weight", func(t *testing.T) {
+		t.Parallel()
+
 		children := idx.Children("protocols")
 		if len(children) != 2 {
 			t.Fatalf("Children(protocols): got %d, want 2", len(children))
@@ -200,6 +248,8 @@ func TestChildren(t *testing.T) {
 }
 
 func TestTopLevel(t *testing.T) {
+	t.Parallel()
+
 	idx := mustLoadIndex(t)
 
 	top := idx.TopLevel()
@@ -228,6 +278,8 @@ func TestTopLevel(t *testing.T) {
 }
 
 func TestChildrenWithMissingChildSlug(t *testing.T) {
+	t.Parallel()
+
 	// Test that Children gracefully skips slugs that don't exist in the index.
 	idx := &Index{
 		Sections: []Section{

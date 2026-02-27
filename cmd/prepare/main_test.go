@@ -297,30 +297,42 @@ func TestRunWithMockDocs(t *testing.T) {
 
 	// Verify metadata.
 	t.Run("javascript-api metadata", func(t *testing.T) {
+		t.Parallel()
+
 		requireSection(t, bySlug["javascript-api"], "JavaScript API", "javascript-api", true, 3)
 	})
 
 	t.Run("get metadata", func(t *testing.T) {
+		t.Parallel()
+
 		requireSection(t, bySlug["javascript-api/k6-http/get"], "get( url, [params] )", "javascript-api", false, 10)
 	})
 
 	// Verify children population.
 	t.Run("k6-http children", func(t *testing.T) {
+		t.Parallel()
+
 		// get (weight 10) should come before post (weight 20).
 		requireChildren(t, bySlug["javascript-api/k6-http"],
 			"javascript-api/k6-http/get", "javascript-api/k6-http/post")
 	})
 
 	t.Run("javascript-api children", func(t *testing.T) {
+		t.Parallel()
+
 		requireChildren(t, bySlug["javascript-api"], "javascript-api/k6-http")
 	})
 
 	t.Run("using-k6 children", func(t *testing.T) {
+		t.Parallel()
+
 		// checks (weight 400) before thresholds (weight 500).
 		requireChildren(t, bySlug["using-k6"], "using-k6/checks", "using-k6/thresholds")
 	})
 
 	t.Run("leaf node has empty children", func(t *testing.T) {
+		t.Parallel()
+
 		requireChildren(t, bySlug["using-k6/checks"])
 	})
 }
@@ -368,6 +380,8 @@ func TestTransformedMarkdownContent(t *testing.T) {
 	}
 
 	t.Run("shared content resolved", func(t *testing.T) {
+		t.Parallel()
+
 		data, err := os.ReadFile(filepath.Join(outputDir, "markdown", "javascript-api", "k6-http", "_index.md"))
 		if err != nil {
 			t.Fatalf("read k6-http _index.md: %v", err)
@@ -383,6 +397,8 @@ func TestTransformedMarkdownContent(t *testing.T) {
 	})
 
 	t.Run("code tags preserved in bundle", func(t *testing.T) {
+		t.Parallel()
+
 		data, err := os.ReadFile(filepath.Join(outputDir, "markdown", "javascript-api", "k6-http", "get.md"))
 		if err != nil {
 			t.Fatalf("read get.md: %v", err)
@@ -398,6 +414,8 @@ func TestTransformedMarkdownContent(t *testing.T) {
 	})
 
 	t.Run("admonition preserved in bundle", func(t *testing.T) {
+		t.Parallel()
+
 		data, err := os.ReadFile(filepath.Join(outputDir, "markdown", "using-k6", "checks.md"))
 		if err != nil {
 			t.Fatalf("read checks.md: %v", err)
@@ -410,6 +428,8 @@ func TestTransformedMarkdownContent(t *testing.T) {
 	})
 
 	t.Run("frontmatter preserved in bundle", func(t *testing.T) {
+		t.Parallel()
+
 		data, err := os.ReadFile(filepath.Join(outputDir, "markdown", "using-k6", "thresholds.md"))
 		if err != nil {
 			t.Fatalf("read thresholds.md: %v", err)
@@ -425,6 +445,8 @@ func TestTransformedMarkdownContent(t *testing.T) {
 	})
 
 	t.Run("version placeholder preserved in bundle", func(t *testing.T) {
+		t.Parallel()
+
 		data, err := os.ReadFile(filepath.Join(outputDir, "markdown", "javascript-api", "k6-http", "get.md"))
 		if err != nil {
 			t.Fatalf("read get.md: %v", err)
@@ -768,6 +790,8 @@ func TestSlugCollisionPrefersIndex(t *testing.T) {
 }
 
 func TestRunWithRealDocs(t *testing.T) {
+	t.Parallel()
+
 	k6DocsPath := os.Getenv("K6_DOCS_PATH")
 	if k6DocsPath == "" {
 		k6DocsPath = filepath.Join(os.Getenv("HOME"), "grafana", "k6-docs")

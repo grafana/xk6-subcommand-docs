@@ -366,6 +366,8 @@ func TestPrintAlignedList(t *testing.T) {
 }
 
 func TestPrintTOC(t *testing.T) {
+	t.Parallel()
+
 	_, idx := setupTestCache(t)
 
 	var buf bytes.Buffer
@@ -416,9 +418,13 @@ func TestPrintTOC(t *testing.T) {
 }
 
 func TestPrintSection(t *testing.T) {
+	t.Parallel()
+
 	cacheDir, idx := setupTestCache(t)
 
 	t.Run("section with content and children", func(t *testing.T) {
+		t.Parallel()
+
 		sec, ok := idx.Lookup("javascript-api/k6-http")
 		if !ok {
 			t.Fatal("Lookup(javascript-api/k6-http): not found")
@@ -452,6 +458,8 @@ func TestPrintSection(t *testing.T) {
 	})
 
 	t.Run("leaf section without children", func(t *testing.T) {
+		t.Parallel()
+
 		sec, ok := idx.Lookup("javascript-api/k6-http/get")
 		if !ok {
 			t.Fatal("Lookup(javascript-api/k6-http/get): not found")
@@ -471,9 +479,13 @@ func TestPrintSection(t *testing.T) {
 }
 
 func TestPrintList(t *testing.T) {
+	t.Parallel()
+
 	_, idx := setupTestCache(t)
 
 	t.Run("section with children", func(t *testing.T) {
+		t.Parallel()
+
 		var buf bytes.Buffer
 		printList(&buf, idx, "javascript-api/k6-http")
 		out := buf.String()
@@ -494,6 +506,8 @@ func TestPrintList(t *testing.T) {
 	})
 
 	t.Run("section without children", func(t *testing.T) {
+		t.Parallel()
+
 		var buf bytes.Buffer
 		printList(&buf, idx, "javascript-api/k6-http/get")
 		out := buf.String()
@@ -507,6 +521,8 @@ func TestPrintList(t *testing.T) {
 	})
 
 	t.Run("nonexistent slug", func(t *testing.T) {
+		t.Parallel()
+
 		var buf bytes.Buffer
 		printList(&buf, idx, "does-not-exist")
 		out := buf.String()
@@ -518,9 +534,13 @@ func TestPrintList(t *testing.T) {
 }
 
 func TestPrintSearch(t *testing.T) {
+	t.Parallel()
+
 	cacheDir, idx := setupTestCache(t)
 
 	t.Run("match in title groups by parent", func(t *testing.T) {
+		t.Parallel()
+
 		var buf bytes.Buffer
 		printSearch(&buf, idx, "Scenarios", cacheDir, "v0.55.x")
 		out := buf.String()
@@ -538,6 +558,8 @@ func TestPrintSearch(t *testing.T) {
 	})
 
 	t.Run("match in description shows group with description", func(t *testing.T) {
+		t.Parallel()
+
 		var buf bytes.Buffer
 		printSearch(&buf, idx, "GET request", cacheDir, "v0.55.x")
 		out := buf.String()
@@ -553,6 +575,8 @@ func TestPrintSearch(t *testing.T) {
 	})
 
 	t.Run("match in body content", func(t *testing.T) {
+		t.Parallel()
+
 		var buf bytes.Buffer
 		printSearch(&buf, idx, "WebSocket example content", cacheDir, "v0.55.x")
 		out := buf.String()
@@ -566,6 +590,8 @@ func TestPrintSearch(t *testing.T) {
 	})
 
 	t.Run("groups sorted alphabetically", func(t *testing.T) {
+		t.Parallel()
+
 		var buf bytes.Buffer
 		// Search for "k6" which should match multiple groups.
 		printSearch(&buf, idx, "k6", cacheDir, "v0.55.x")
@@ -573,6 +599,8 @@ func TestPrintSearch(t *testing.T) {
 	})
 
 	t.Run("no results", func(t *testing.T) {
+		t.Parallel()
+
 		var buf bytes.Buffer
 		printSearch(&buf, idx, "zzzznotfound", cacheDir, "v0.55.x")
 		out := buf.String()
@@ -584,6 +612,8 @@ func TestPrintSearch(t *testing.T) {
 }
 
 func TestPrintTopLevelList(t *testing.T) {
+	t.Parallel()
+
 	_, idx := setupTestCache(t)
 
 	var buf bytes.Buffer
@@ -672,6 +702,8 @@ func TestDynamicAlignment(t *testing.T) {
 }
 
 func TestPrintBestPractices(t *testing.T) {
+	t.Parallel()
+
 	cacheDir, _ := setupTestCache(t)
 
 	var buf bytes.Buffer
@@ -691,6 +723,8 @@ func TestPrintBestPractices(t *testing.T) {
 }
 
 func TestPrintBestPracticesMissing(t *testing.T) {
+	t.Parallel()
+
 	dir := t.TempDir()
 	// No best_practices.md — should return error.
 	var buf bytes.Buffer
@@ -701,6 +735,8 @@ func TestPrintBestPracticesMissing(t *testing.T) {
 }
 
 func TestPrintAll(t *testing.T) {
+	t.Parallel()
+
 	cacheDir, idx := setupTestCache(t)
 
 	var buf bytes.Buffer
@@ -732,6 +768,8 @@ func TestPrintAll(t *testing.T) {
 }
 
 func TestCommandIntegration(t *testing.T) {
+	t.Parallel()
+
 	cacheDir, _ := setupTestCache(t)
 
 	run := func(t *testing.T, args ...string) string {
@@ -748,6 +786,8 @@ func TestCommandIntegration(t *testing.T) {
 	}
 
 	t.Run("no args shows TOC", func(t *testing.T) {
+		t.Parallel()
+
 		out := run(t)
 		if !strings.Contains(out, "k6 Documentation (v0.55.x)") {
 			t.Error("integration TOC: missing header")
@@ -755,6 +795,8 @@ func TestCommandIntegration(t *testing.T) {
 	})
 
 	t.Run("topic arg shows section", func(t *testing.T) {
+		t.Parallel()
+
 		out := run(t, "using-k6", "scenarios")
 		if !strings.Contains(out, "Scenarios let you configure execution.") {
 			t.Error("integration section: missing content")
@@ -762,6 +804,8 @@ func TestCommandIntegration(t *testing.T) {
 	})
 
 	t.Run("--list flag without args shows top-level list", func(t *testing.T) {
+		t.Parallel()
+
 		out := run(t, "--list")
 		if !strings.Contains(out, "javascript-api") {
 			t.Error("integration --list no args: missing 'javascript-api'")
@@ -776,6 +820,8 @@ func TestCommandIntegration(t *testing.T) {
 	})
 
 	t.Run("--list flag with topic shows compact listing", func(t *testing.T) {
+		t.Parallel()
+
 		out := run(t, "--list", "javascript-api/k6-http")
 		if !strings.Contains(out, "get") {
 			t.Error("integration --list: missing 'get'")
@@ -783,6 +829,8 @@ func TestCommandIntegration(t *testing.T) {
 	})
 
 	t.Run("--all flag prints everything", func(t *testing.T) {
+		t.Parallel()
+
 		out := run(t, "--all")
 		if !strings.Contains(out, "k6 Documentation (v0.55.x)") {
 			t.Error("integration --all: missing header")
@@ -793,6 +841,8 @@ func TestCommandIntegration(t *testing.T) {
 	})
 
 	t.Run("search subcommand", func(t *testing.T) {
+		t.Parallel()
+
 		out := run(t, "search", "HTTP")
 		if !strings.Contains(out, `Results for "HTTP"`) {
 			t.Error("integration search: missing results header")
@@ -800,6 +850,8 @@ func TestCommandIntegration(t *testing.T) {
 	})
 
 	t.Run("best-practices arg", func(t *testing.T) {
+		t.Parallel()
+
 		out := run(t, "best-practices")
 		if !strings.Contains(out, "Follow these best practices for k6.") {
 			t.Error("integration best-practices: missing content")
@@ -807,6 +859,8 @@ func TestCommandIntegration(t *testing.T) {
 	})
 
 	t.Run("unknown topic returns error", func(t *testing.T) {
+		t.Parallel()
+
 		cmd := newCmd(nil)
 		var buf bytes.Buffer
 		cmd.SetOut(&buf)
