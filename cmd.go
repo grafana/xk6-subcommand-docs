@@ -2,23 +2,22 @@ package docs
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"io"
 	"net/http"
-	"os"
 	"os/exec"
 	"strings"
 
 	"github.com/spf13/cobra"
 	"go.k6.io/k6/cmd/state"
-	"golang.org/x/term"
 )
 
 func newCmd(gs *state.GlobalState) *cobra.Command {
-	return newDocsCmd(gs, os.Stdout)
+	return newDocsCmd(gs)
 }
 
-func newDocsCmd(gs *state.GlobalState, stdout io.Writer) *cobra.Command {
+func newDocsCmd(gs *state.GlobalState) *cobra.Command {
 	var opts docsOpts
 
 	cmd := &cobra.Command{
@@ -41,7 +40,7 @@ func newDocsCmd(gs *state.GlobalState, stdout io.Writer) *cobra.Command {
 		Short: "Search documentation",
 		Args:  cobra.MinimumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return runSearch(cmd, args, &opts)
+			return runSearch(gs, cmd, args, &opts)
 		},
 	}
 	cmd.AddCommand(searchCmd)
@@ -56,34 +55,34 @@ type docsOpts struct {
 	cacheDir string
 }
 
-func runSearch(cmd *cobra.Command, args []string, opts *docsOpts) error {
-	version, cacheDir, idx, err := setup(opts.version, opts.cacheDir)
+func runSearch(gs *state.GlobalState, cmd *cobra.Command, args []string, opts *docsOpts) error {
+	version, cacheDir, idx, err := setup(gs, opts.version, opts.cacheDir)
 	if err != nil {
 		return err
 	}
 
 	term := strings.Join(args, " ")
-	printSearch(cmd.OutOrStdout(), idx, term, cacheDir, version)
+	printSearch(gs.FS, cmd.OutOrStdout(), idx, term, cacheDir, version)
 	return nil
 }
 
 func runDocs(gs *state.GlobalState, cmd *cobra.Command, args []string, opts *docsOpts) error {
-	version, cacheDir, idx, err := setup(opts.version, opts.cacheDir)
+	version, cacheDir, idx, err := setup(gs, opts.version, opts.cacheDir)
 	if err != nil {
 		return err
 	}
 
-	isTTY := term.IsTerminal(int(os.Stdout.Fd()))
+	isTTY := gs.Stdout.IsTTY
 	logMode(gs, isTTY)
 
-	cfg, cfgErr := loadConfig()
+	cfg, cfgErr := loadConfig(gs.FS, gs.Env)
 	if cfgErr != nil && gs != nil {
 		gs.Logger.Warnf("docs: ignoring invalid config: %v", cfgErr)
 	}
 
 	baseW := cmd.OutOrStdout()
 	var buf *bytes.Buffer
-	w := io.Writer(baseW)
+	w := baseW
 
 	if cfg.Renderer != "" && isTTY {
 		buf = &bytes.Buffer{}
@@ -91,25 +90,25 @@ func runDocs(gs *state.GlobalState, cmd *cobra.Command, args []string, opts *doc
 	}
 
 	if opts.all {
-		printAll(w, idx, cacheDir, version)
-		return pipeRenderer(buf, os.Stdout, baseW, cfg.Renderer)
+		printAll(gs.FS, w, idx, cacheDir, version)
+		return pipeRenderer(cmd.Context(), buf, gs.Stdout, baseW, gs.Stderr, cfg.Renderer)
 	}
 
 	if opts.list && len(args) == 0 {
 		printTopLevelList(w, idx)
-		return pipeRenderer(buf, os.Stdout, baseW, cfg.Renderer)
+		return pipeRenderer(cmd.Context(), buf, gs.Stdout, baseW, gs.Stderr, cfg.Renderer)
 	}
 
 	if len(args) == 0 {
 		printTOC(w, idx, version)
-		return pipeRenderer(buf, os.Stdout, baseW, cfg.Renderer)
+		return pipeRenderer(cmd.Context(), buf, gs.Stdout, baseW, gs.Stderr, cfg.Renderer)
 	}
 
 	if args[0] == "best-practices" {
-		if err := printBestPractices(w, cacheDir, version); err != nil {
+		if err := printBestPractices(gs.FS, w, cacheDir, version); err != nil {
 			return err
 		}
-		return pipeRenderer(buf, os.Stdout, baseW, cfg.Renderer)
+		return pipeRenderer(cmd.Context(), buf, gs.Stdout, baseW, gs.Stderr, cfg.Renderer)
 	}
 
 	slug := ResolveWithLookup(args, func(s string) bool {
@@ -124,11 +123,11 @@ func runDocs(gs *state.GlobalState, cmd *cobra.Command, args []string, opts *doc
 
 	if opts.list {
 		printList(w, idx, slug)
-		return pipeRenderer(buf, os.Stdout, baseW, cfg.Renderer)
+		return pipeRenderer(cmd.Context(), buf, gs.Stdout, baseW, gs.Stderr, cfg.Renderer)
 	}
 
-	printSection(w, idx, sec, cacheDir, version)
-	return pipeRenderer(buf, os.Stdout, baseW, cfg.Renderer)
+	printSection(gs.FS, w, idx, sec, cacheDir, version)
+	return pipeRenderer(cmd.Context(), buf, gs.Stdout, baseW, gs.Stderr, cfg.Renderer)
 }
 
 func logMode(gs *state.GlobalState, isTTY bool) {
@@ -142,7 +141,9 @@ func logMode(gs *state.GlobalState, isTTY bool) {
 	}
 }
 
-func pipeRenderer(buf *bytes.Buffer, stdout, fallback io.Writer, renderer string) error {
+func pipeRenderer(
+	ctx context.Context, buf *bytes.Buffer, stdout, fallback, stderr io.Writer, renderer string,
+) error {
 	if buf == nil || buf.Len() == 0 {
 		return nil
 	}
@@ -155,10 +156,10 @@ func pipeRenderer(buf *bytes.Buffer, stdout, fallback io.Writer, renderer string
 		return err
 	}
 
-	rc := exec.Command(parts[0], parts[1:]...) //nolint:gosec // user-configured renderer
+	rc := exec.CommandContext(ctx, parts[0], parts[1:]...) //nolint:gosec // user-configured renderer
 	rc.Stdin = bytes.NewReader(raw)
 	rc.Stdout = stdout
-	rc.Stderr = os.Stderr
+	rc.Stderr = stderr
 
 	if err := rc.Run(); err != nil {
 		_, writeErr := fallback.Write(raw)
@@ -171,10 +172,10 @@ func pipeRenderer(buf *bytes.Buffer, stdout, fallback io.Writer, renderer string
 // setup resolves the version, ensures docs are cached, and loads the index.
 // It checks flags, then env vars, then auto-detection for both version and
 // cache directory.
-func setup(versionFlag, cacheDirFlg string) (version, cacheDir string, idx *Index, err error) {
+func setup(gs *state.GlobalState, versionFlag, cacheDirFlg string) (version, cacheDir string, idx *Index, err error) {
 	version = versionFlag
 	if version == "" {
-		version = os.Getenv("K6_DOCS_VERSION")
+		version = gs.Env["K6_DOCS_VERSION"]
 	}
 	if version == "" {
 		version, err = DetectK6Version()
@@ -185,17 +186,17 @@ func setup(versionFlag, cacheDirFlg string) (version, cacheDir string, idx *Inde
 
 	cacheDir = cacheDirFlg
 	if cacheDir == "" {
-		cacheDir = os.Getenv("K6_DOCS_CACHE_DIR")
+		cacheDir = gs.Env["K6_DOCS_CACHE_DIR"]
 	}
 
 	if cacheDir == "" {
-		cacheDir, err = EnsureDocs(version, http.DefaultClient)
+		cacheDir, err = EnsureDocs(gs.FS, gs.Env, version, http.DefaultClient)
 		if err != nil {
 			return "", "", nil, fmt.Errorf("ensure docs: %w", err)
 		}
 	}
 
-	idx, err = LoadIndex(cacheDir)
+	idx, err = LoadIndex(gs.FS, cacheDir)
 	if err != nil {
 		return "", "", nil, fmt.Errorf("load index: %w", err)
 	}

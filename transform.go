@@ -6,9 +6,11 @@ import (
 )
 
 var (
-	reShared       = regexp.MustCompile(`\{\{<\s*docs/shared\s+source="k6"\s+lookup="([^"]+)".*?>\}\}`)
-	reCodeTag      = regexp.MustCompile(`\{\{<\s*/?\s*code\s*>\}\}`)
-	reAdmonition   = regexp.MustCompile(`(?s)\{\{<\s*admonition\s+type="([^"]+)"\s*>\}\}\s*\n(.*?)\n\s*\{\{<\s*/admonition\s*>\}\}`)
+	reShared     = regexp.MustCompile(`\{\{<\s*docs/shared\s+source="k6"\s+lookup="([^"]+)".*?>\}\}`)
+	reCodeTag    = regexp.MustCompile(`\{\{<\s*/?\s*code\s*>\}\}`)
+	reAdmonition = regexp.MustCompile(
+		`(?s)\{\{<\s*admonition\s+type="([^"]+)"\s*>\}\}\s*\n(.*?)\n\s*\{\{<\s*/admonition\s*>\}\}`,
+	)
 	reSection      = regexp.MustCompile(`\{\{<\s*/?\s*section\b[^>]*>\}\}`)
 	reAnyShortcode = regexp.MustCompile(`\{\{<\s*/?\s*[^>]+>\}\}`)
 	reComponentTag = regexp.MustCompile(`</?[A-Z][a-z][a-zA-Z]*[^>]*>`) // <Glossary>, </DescriptionList>, etc.
@@ -28,18 +30,6 @@ var (
 	// Captures: [1]=link text, [2]=path after /docs/k6/vX.Y.Z/
 	reInternalLink = regexp.MustCompile(`\[((?:[^\[\]]|\[[^\]]*\])*)\]\(https://grafana\.com/docs/k6/v[^/]+/([^)]*)\)`)
 )
-
-// includedCategories is the set of doc categories we ship.
-// Links to these become plain text; links to anything else keep the URL.
-var includedCategories = map[string]bool{
-	"javascript-api":   true,
-	"using-k6":         true,
-	"using-k6-browser": true,
-	"testing-guides":   true,
-	"examples":         true,
-	"results-output":   true,
-	"reference":        true,
-}
 
 // PrepareTransform resolves docs/shared shortcodes using the shared content
 // map. This runs at bundle build time because shared content files are not
@@ -134,6 +124,15 @@ func Transform(content, version string) string {
 	// 7. Convert internal docs links to plain text.
 	// Links pointing to categories we ship become just the link text.
 	// Links to excluded categories (extensions, set-up, etc.) keep the URL.
+	includedCategories := map[string]bool{
+		"javascript-api":   true,
+		"using-k6":         true,
+		"using-k6-browser": true,
+		"testing-guides":   true,
+		"examples":         true,
+		"results-output":   true,
+		"reference":        true,
+	}
 	s = reInternalLink.ReplaceAllStringFunc(s, func(match string) string {
 		m := reInternalLink.FindStringSubmatch(match)
 		if m == nil {
@@ -144,10 +143,7 @@ func Transform(content, version string) string {
 		clean := strings.SplitN(path, "#", 2)[0]
 		clean = strings.TrimRight(clean, "/")
 		// Get the top-level category.
-		cat := clean
-		if i := strings.Index(clean, "/"); i != -1 {
-			cat = clean[:i]
-		}
+		cat, _, _ := strings.Cut(clean, "/")
 		if includedCategories[cat] {
 			return linkText
 		}

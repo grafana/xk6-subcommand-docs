@@ -3,10 +3,11 @@ package docs
 import (
 	"encoding/json"
 	"fmt"
-	"os"
 	"path/filepath"
 	"sort"
 	"strings"
+
+	"go.k6.io/k6/lib/fsext"
 )
 
 // Section represents a single documentation section.
@@ -29,8 +30,8 @@ type Index struct {
 }
 
 // LoadIndex reads sections.json from dir and returns a populated Index.
-func LoadIndex(dir string) (*Index, error) {
-	data, err := os.ReadFile(filepath.Join(dir, "sections.json"))
+func LoadIndex(afs fsext.Fs, dir string) (*Index, error) {
+	data, err := fsext.ReadFile(afs, filepath.Join(dir, "sections.json"))
 	if err != nil {
 		return nil, fmt.Errorf("load index %s: %w", dir, err)
 	}

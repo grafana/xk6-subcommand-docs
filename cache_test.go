@@ -5,12 +5,12 @@ import (
 	"bytes"
 	"io"
 	"net/http"
-	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 
 	"github.com/klauspost/compress/zstd"
+	"go.k6.io/k6/lib/fsext"
 )
 
 func TestDownloadURL(t *testing.T) {
@@ -26,36 +26,64 @@ func TestDownloadURL(t *testing.T) {
 func TestCacheDir(t *testing.T) {
 	t.Parallel()
 
-	dir, err := CacheDir("v1.2.3")
-	if err != nil {
-		t.Fatalf("CacheDir: %v", err)
-	}
+	t.Run("HOME set", func(t *testing.T) {
+		t.Parallel()
 
-	if !strings.HasSuffix(dir, filepath.Join("k6", "docs", "v1.2.3")) {
-		t.Errorf("CacheDir = %q, want suffix %q", dir, filepath.Join("k6", "docs", "v1.2.3"))
-	}
+		env := map[string]string{"HOME": "/somepath"}
+		dir, err := CacheDir(env, "v1.2.3")
+		if err != nil {
+			t.Fatalf("CacheDir: %v", err)
+		}
+		if !strings.HasSuffix(dir, filepath.Join("k6", "docs", "v1.2.3")) {
+			t.Errorf("CacheDir = %q, want suffix %q", dir, filepath.Join("k6", "docs", "v1.2.3"))
+		}
+	})
+
+	t.Run("USERPROFILE fallback", func(t *testing.T) {
+		t.Parallel()
+
+		env := map[string]string{"USERPROFILE": `C:\Users\me`}
+		dir, err := CacheDir(env, "v1.2.3")
+		if err != nil {
+			t.Fatalf("CacheDir: %v", err)
+		}
+		if !strings.HasSuffix(dir, filepath.Join("k6", "docs", "v1.2.3")) {
+			t.Errorf("CacheDir = %q, want suffix %q", dir, filepath.Join("k6", "docs", "v1.2.3"))
+		}
+	})
+
+	t.Run("neither set", func(t *testing.T) {
+		t.Parallel()
+
+		_, err := CacheDir(map[string]string{}, "v1.2.3")
+		if err == nil {
+			t.Fatal("expected error when neither HOME nor USERPROFILE is set")
+		}
+	})
 }
 
 func TestIsCached(t *testing.T) {
 	t.Parallel()
 
+	afs := fsext.NewMemMapFs()
+	env := map[string]string{"HOME": "/fakehome"}
+
 	// A version that definitely doesn't exist should not be cached.
-	if IsCached("nonexistent-version-xyz") {
+	if IsCached(afs, env, "nonexistent-version-xyz") {
 		t.Error("IsCached returned true for a version that should not exist")
 	}
 
 	// Create the directory and check again.
-	dir, err := CacheDir("test-cached-version")
+	dir, err := CacheDir(env, "test-cached-version")
 	if err != nil {
 		t.Fatalf("CacheDir: %v", err)
 	}
 
-	if err := os.MkdirAll(dir, 0o755); err != nil {
+	if err := afs.MkdirAll(dir, 0o755); err != nil {
 		t.Fatalf("MkdirAll: %v", err)
 	}
-	t.Cleanup(func() { os.RemoveAll(dir) })
 
-	if !IsCached("test-cached-version") {
+	if !IsCached(afs, env, "test-cached-version") {
 		t.Error("IsCached returned false after creating cache directory")
 	}
 }
@@ -63,33 +91,43 @@ func TestIsCached(t *testing.T) {
 func TestExtract(t *testing.T) {
 	t.Parallel()
 
+	afs := fsext.NewMemMapFs()
+
 	// Build a .tar.zst archive in memory with two files.
 	archive := buildTarZst(t, map[string]string{
 		"readme.txt":        "hello world",
 		"subdir/nested.txt": "nested content",
 	})
 
-	dest := t.TempDir()
+	dest := "/tmp/extract-test"
+	if err := afs.MkdirAll(dest, 0o755); err != nil {
+		t.Fatalf("MkdirAll: %v", err)
+	}
 
-	if err := extract(archive, dest); err != nil {
+	if err := extract(afs, archive, dest); err != nil {
 		t.Fatalf("extract: %v", err)
 	}
 
 	// Verify extracted files.
-	assertFileContent(t, filepath.Join(dest, "readme.txt"), "hello world")
-	assertFileContent(t, filepath.Join(dest, "subdir", "nested.txt"), "nested content")
+	assertFileContent(t, afs, filepath.Join(dest, "readme.txt"), "hello world")
+	assertFileContent(t, afs, filepath.Join(dest, "subdir", "nested.txt"), "nested content")
 }
 
 func TestExtractRejectsTraversal(t *testing.T) {
 	t.Parallel()
 
+	afs := fsext.NewMemMapFs()
+
 	archive := buildTarZstRaw(t, []tarEntry{
 		{name: "../escape.txt", content: "evil"},
 	})
 
-	dest := t.TempDir()
+	dest := "/tmp/traversal-test"
+	if err := afs.MkdirAll(dest, 0o755); err != nil {
+		t.Fatalf("MkdirAll: %v", err)
+	}
 
-	err := extract(archive, dest)
+	err := extract(afs, archive, dest)
 	if err == nil {
 		t.Fatal("extract should reject path traversal, but returned nil")
 	}
@@ -101,13 +139,18 @@ func TestExtractRejectsTraversal(t *testing.T) {
 func TestExtractRejectsAbsolutePath(t *testing.T) {
 	t.Parallel()
 
+	afs := fsext.NewMemMapFs()
+
 	archive := buildTarZstRaw(t, []tarEntry{
 		{name: "/etc/passwd", content: "evil"},
 	})
 
-	dest := t.TempDir()
+	dest := "/tmp/abspath-test"
+	if err := afs.MkdirAll(dest, 0o755); err != nil {
+		t.Fatalf("MkdirAll: %v", err)
+	}
 
-	err := extract(archive, dest)
+	err := extract(afs, archive, dest)
 	if err == nil {
 		t.Fatal("extract should reject absolute path, but returned nil")
 	}
@@ -116,15 +159,14 @@ func TestExtractRejectsAbsolutePath(t *testing.T) {
 func TestEnsureDocs(t *testing.T) {
 	t.Parallel()
 
+	afs := fsext.NewMemMapFs()
+	env := map[string]string{"HOME": "/fakehome"}
 	version := "test-ensure-" + t.Name()
 
-	// Clean up any leftover cache from previous runs.
-	dir, err := CacheDir(version)
+	dir, err := CacheDir(env, version)
 	if err != nil {
 		t.Fatalf("CacheDir: %v", err)
 	}
-	os.RemoveAll(dir)
-	t.Cleanup(func() { os.RemoveAll(dir) })
 
 	archive := buildTarZst(t, map[string]string{
 		"doc.txt": "documentation content",
@@ -135,7 +177,7 @@ func TestEnsureDocs(t *testing.T) {
 		statusCode: http.StatusOK,
 	}
 
-	got, err := EnsureDocs(version, mock)
+	got, err := EnsureDocs(afs, env, version, mock)
 	if err != nil {
 		t.Fatalf("EnsureDocs: %v", err)
 	}
@@ -144,10 +186,10 @@ func TestEnsureDocs(t *testing.T) {
 		t.Errorf("EnsureDocs returned %q, want %q", got, dir)
 	}
 
-	assertFileContent(t, filepath.Join(dir, "doc.txt"), "documentation content")
+	assertFileContent(t, afs, filepath.Join(dir, "doc.txt"), "documentation content")
 
 	// Calling again should use cache (no second HTTP call).
-	got2, err := EnsureDocs(version, mock)
+	got2, err := EnsureDocs(afs, env, version, mock)
 	if err != nil {
 		t.Fatalf("EnsureDocs second call: %v", err)
 	}
@@ -162,17 +204,16 @@ func TestEnsureDocs(t *testing.T) {
 func TestEnsureDocsHTTPError(t *testing.T) {
 	t.Parallel()
 
+	afs := fsext.NewMemMapFs()
+	env := map[string]string{"HOME": "/fakehome"}
 	version := "test-ensure-httperr-" + t.Name()
-	dir, _ := CacheDir(version)
-	os.RemoveAll(dir)
-	t.Cleanup(func() { os.RemoveAll(dir) })
 
 	mock := &mockHTTPClient{
 		body:       []byte("not found"),
 		statusCode: http.StatusNotFound,
 	}
 
-	_, err := EnsureDocs(version, mock)
+	_, err := EnsureDocs(afs, env, version, mock)
 	if err == nil {
 		t.Fatal("EnsureDocs should fail on HTTP 404")
 	}
@@ -186,7 +227,7 @@ type mockHTTPClient struct {
 	calls      int
 }
 
-func (m *mockHTTPClient) Get(url string) (*http.Response, error) {
+func (m *mockHTTPClient) Get(_ string) (*http.Response, error) {
 	m.calls++
 	return &http.Response{
 		StatusCode: m.statusCode,
@@ -244,10 +285,10 @@ func buildTarZstRaw(t *testing.T, entries []tarEntry) *bytes.Buffer {
 	return &buf
 }
 
-func assertFileContent(t *testing.T, path, want string) {
+func assertFileContent(t *testing.T, afs fsext.Fs, path, want string) {
 	t.Helper()
 
-	data, err := os.ReadFile(path)
+	data, err := fsext.ReadFile(afs, path)
 	if err != nil {
 		t.Fatalf("ReadFile(%s): %v", path, err)
 	}

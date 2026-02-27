@@ -1,12 +1,9 @@
 package docs
 
-import "strings"
-
-// categories lists the known documentation category prefixes.
-var categories = []string{
-	"javascript-api", "using-k6", "using-k6-browser",
-	"testing-guides", "examples", "results-output", "reference",
-}
+import (
+	"slices"
+	"strings"
+)
 
 // Resolve converts CLI args into a canonical documentation slug.
 // It always assumes the k6- prefix for Rule 3 (JS API shortcuts).
@@ -30,6 +27,11 @@ func ResolveWithLookup(args []string, exists func(string) bool) string {
 		return ""
 	}
 
+	categories := []string{
+		"javascript-api", "using-k6", "using-k6-browser",
+		"testing-guides", "examples", "results-output", "reference",
+	}
+
 	// Rule 1: if any arg contains "/", treat as a full slug.
 	for _, a := range args {
 		if strings.Contains(a, "/") {
@@ -38,10 +40,8 @@ func ResolveWithLookup(args []string, exists func(string) bool) string {
 	}
 
 	// Rule 2: first word matches a known category prefix → join all words.
-	for _, cat := range categories {
-		if args[0] == cat {
-			return strings.Join(args, "/")
-		}
+	if slices.Contains(categories, args[0]) {
+		return strings.Join(args, "/")
 	}
 
 	// Rule 3: JS API module shortcut.

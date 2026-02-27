@@ -2,24 +2,26 @@ package main
 
 import (
 	"encoding/json"
-	"os"
 	"path/filepath"
 	"strings"
+	"syscall"
 	"testing"
 
 	docs "github.com/grafana/xk6-subcommand-docs"
+	"go.k6.io/k6/lib/fsext"
 )
 
 // setupMockDocs creates a minimal mock k6-docs directory structure for testing.
-// It returns the path that should be used as k6DocsPath.
-func setupMockDocs(t *testing.T, version string) string {
+// It returns the in-memory filesystem and root path.
+func setupMockDocs(t *testing.T) (fsext.Fs, string) {
 	t.Helper()
 
-	root := t.TempDir()
-	versionRoot := filepath.Join(root, "docs", "sources", "k6", version)
+	afs := fsext.NewMemMapFs()
+	root := "/mock-docs"
+	versionRoot := filepath.Join(root, "docs", "sources", "k6", "v0.99.x")
 
 	// Create version root _index.md (should be skipped).
-	writeFile(t, filepath.Join(versionRoot, "_index.md"), `---
+	writeFile(t, afs, filepath.Join(versionRoot, "_index.md"), `---
 title: 'k6 Documentation'
 description: 'The k6 documentation.'
 weight: 1
@@ -29,11 +31,11 @@ weight: 1
 `)
 
 	// Create shared content.
-	writeFile(t, filepath.Join(versionRoot, "shared", "index.md"), `---
+	writeFile(t, afs, filepath.Join(versionRoot, "shared", "index.md"), `---
 headless: true
 ---
 `)
-	writeFile(t, filepath.Join(versionRoot, "shared", "javascript-api", "k6-http.md"), `---
+	writeFile(t, afs, filepath.Join(versionRoot, "shared", "javascript-api", "k6-http.md"), `---
 title: 'k6/http shared content'
 ---
 
@@ -45,7 +47,7 @@ The k6/http module contains functionality for performing HTTP transactions.
 `)
 
 	// Create javascript-api category.
-	writeFile(t, filepath.Join(versionRoot, "javascript-api", "_index.md"), `---
+	writeFile(t, afs, filepath.Join(versionRoot, "javascript-api", "_index.md"), `---
 title: 'JavaScript API'
 description: 'The list of k6 modules natively supported in k6 scripts.'
 weight: 03
@@ -58,7 +60,7 @@ The list of k6 modules.
 {{< section >}}
 `)
 
-	writeFile(t, filepath.Join(versionRoot, "javascript-api", "k6-http", "_index.md"), `---
+	writeFile(t, afs, filepath.Join(versionRoot, "javascript-api", "k6-http", "_index.md"), `---
 title: 'k6/http'
 description: 'The k6/http module contains functionality for performing HTTP transactions.'
 weight: 09
@@ -69,7 +71,7 @@ weight: 09
 {{< docs/shared source="k6" lookup="javascript-api/k6-http.md" version="<K6_VERSION>" >}}
 `)
 
-	writeFile(t, filepath.Join(versionRoot, "javascript-api", "k6-http", "get.md"), `---
+	writeFile(t, afs, filepath.Join(versionRoot, "javascript-api", "k6-http", "get.md"), `---
 title: 'get( url, [params] )'
 description: 'Issue an HTTP GET request.'
 weight: 10
@@ -94,7 +96,7 @@ export default function () {
 {{< /code >}}
 `)
 
-	writeFile(t, filepath.Join(versionRoot, "javascript-api", "k6-http", "post.md"), `---
+	writeFile(t, afs, filepath.Join(versionRoot, "javascript-api", "k6-http", "post.md"), `---
 title: 'post( url, [body], [params] )'
 description: 'Issue an HTTP POST request.'
 weight: 20
@@ -106,7 +108,7 @@ Make a POST request.
 `)
 
 	// Create using-k6 category.
-	writeFile(t, filepath.Join(versionRoot, "using-k6", "_index.md"), `---
+	writeFile(t, afs, filepath.Join(versionRoot, "using-k6", "_index.md"), `---
 title: 'Using k6'
 description: 'The using k6 section.'
 weight: 05
@@ -115,7 +117,7 @@ weight: 05
 # Using k6
 `)
 
-	writeFile(t, filepath.Join(versionRoot, "using-k6", "checks.md"), `---
+	writeFile(t, afs, filepath.Join(versionRoot, "using-k6", "checks.md"), `---
 title: 'Checks'
 description: 'Checks validate boolean conditions.'
 weight: 400
@@ -132,7 +134,7 @@ When a check fails, the script continues.
 {{< /admonition >}}
 `)
 
-	writeFile(t, filepath.Join(versionRoot, "using-k6", "thresholds.md"), `---
+	writeFile(t, afs, filepath.Join(versionRoot, "using-k6", "thresholds.md"), `---
 title: 'Thresholds'
 description: 'Thresholds are pass/fail criteria.'
 weight: 500
@@ -144,7 +146,7 @@ Thresholds are pass/fail criteria for your test metrics.
 `)
 
 	// Create reference/glossary (should be included).
-	writeFile(t, filepath.Join(versionRoot, "reference", "_index.md"), `---
+	writeFile(t, afs, filepath.Join(versionRoot, "reference", "_index.md"), `---
 title: 'Reference'
 description: 'k6 reference documentation.'
 weight: 100
@@ -153,7 +155,7 @@ weight: 100
 # Reference
 `)
 
-	writeFile(t, filepath.Join(versionRoot, "reference", "glossary.md"), `---
+	writeFile(t, afs, filepath.Join(versionRoot, "reference", "glossary.md"), `---
 title: 'Glossary'
 description: 'Technical terms used in k6.'
 weight: 07
@@ -165,7 +167,7 @@ What we talk about when we talk about k6.
 `)
 
 	// Create reference/archive.md (should be EXCLUDED — only glossary is included).
-	writeFile(t, filepath.Join(versionRoot, "reference", "archive.md"), `---
+	writeFile(t, afs, filepath.Join(versionRoot, "reference", "archive.md"), `---
 title: 'Archive'
 description: 'k6 archive command.'
 weight: 10
@@ -175,7 +177,7 @@ weight: 10
 `)
 
 	// Create excluded categories.
-	writeFile(t, filepath.Join(versionRoot, "get-started", "_index.md"), `---
+	writeFile(t, afs, filepath.Join(versionRoot, "get-started", "_index.md"), `---
 title: 'Get Started'
 description: 'Getting started with k6.'
 weight: 01
@@ -184,7 +186,7 @@ weight: 01
 # Get Started
 `)
 
-	writeFile(t, filepath.Join(versionRoot, "extensions", "_index.md"), `---
+	writeFile(t, afs, filepath.Join(versionRoot, "extensions", "_index.md"), `---
 title: 'Extensions'
 description: 'k6 extensions.'
 weight: 50
@@ -193,23 +195,23 @@ weight: 50
 # Extensions
 `)
 
-	return root
+	return afs, root
 }
 
-func writeFile(t *testing.T, path, content string) {
+func writeFile(t *testing.T, afs fsext.Fs, path, content string) {
 	t.Helper()
-	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+	if err := afs.MkdirAll(filepath.Dir(path), 0o750); err != nil {
 		t.Fatalf("mkdir %s: %v", filepath.Dir(path), err)
 	}
-	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+	if err := fsext.WriteFile(afs, path, []byte(content), 0o600); err != nil {
 		t.Fatalf("write %s: %v", path, err)
 	}
 }
 
-func loadOutputIndex(t *testing.T, outputDir, version string) (docs.Index, map[string]docs.Section) {
+func loadOutputIndex(t *testing.T, afs fsext.Fs, outputDir, version string) (docs.Index, map[string]docs.Section) {
 	t.Helper()
 
-	data, err := os.ReadFile(filepath.Join(outputDir, "sections.json"))
+	data, err := fsext.ReadFile(afs, filepath.Join(outputDir, "sections.json"))
 	if err != nil {
 		t.Fatalf("read sections.json: %v", err)
 	}
@@ -255,15 +257,15 @@ func assertNoExcludedCategories(t *testing.T, sections []docs.Section) {
 func TestRunWithMockDocs(t *testing.T) {
 	t.Parallel()
 
+	afs, docsPath := setupMockDocs(t)
 	version := "v0.99.x"
-	docsPath := setupMockDocs(t, version)
-	outputDir := filepath.Join(t.TempDir(), "output")
+	outputDir := "/output"
 
-	if err := run(version, docsPath, outputDir); err != nil {
+	if err := run(version, docsPath, outputDir, afs); err != nil {
 		t.Fatalf("run: %v", err)
 	}
 
-	_, bySlug := loadOutputIndex(t, outputDir, version)
+	_, bySlug := loadOutputIndex(t, afs, outputDir, version)
 
 	// Check included sections exist.
 	expectedSlugs := []string{
@@ -371,18 +373,18 @@ func requireChildren(t *testing.T, s docs.Section, want ...string) {
 func TestTransformedMarkdownContent(t *testing.T) {
 	t.Parallel()
 
+	afs, docsPath := setupMockDocs(t)
 	version := "v0.99.x"
-	docsPath := setupMockDocs(t, version)
-	outputDir := filepath.Join(t.TempDir(), "output")
+	outputDir := "/output-transformed"
 
-	if err := run(version, docsPath, outputDir); err != nil {
+	if err := run(version, docsPath, outputDir, afs); err != nil {
 		t.Fatalf("run: %v", err)
 	}
 
 	t.Run("shared content resolved", func(t *testing.T) {
 		t.Parallel()
 
-		data, err := os.ReadFile(filepath.Join(outputDir, "markdown", "javascript-api", "k6-http", "_index.md"))
+		data, err := fsext.ReadFile(afs, filepath.Join(outputDir, "markdown", "javascript-api", "k6-http", "_index.md"))
 		if err != nil {
 			t.Fatalf("read k6-http _index.md: %v", err)
 		}
@@ -399,7 +401,7 @@ func TestTransformedMarkdownContent(t *testing.T) {
 	t.Run("code tags preserved in bundle", func(t *testing.T) {
 		t.Parallel()
 
-		data, err := os.ReadFile(filepath.Join(outputDir, "markdown", "javascript-api", "k6-http", "get.md"))
+		data, err := fsext.ReadFile(afs, filepath.Join(outputDir, "markdown", "javascript-api", "k6-http", "get.md"))
 		if err != nil {
 			t.Fatalf("read get.md: %v", err)
 		}
@@ -416,7 +418,7 @@ func TestTransformedMarkdownContent(t *testing.T) {
 	t.Run("admonition preserved in bundle", func(t *testing.T) {
 		t.Parallel()
 
-		data, err := os.ReadFile(filepath.Join(outputDir, "markdown", "using-k6", "checks.md"))
+		data, err := fsext.ReadFile(afs, filepath.Join(outputDir, "markdown", "using-k6", "checks.md"))
 		if err != nil {
 			t.Fatalf("read checks.md: %v", err)
 		}
@@ -430,7 +432,7 @@ func TestTransformedMarkdownContent(t *testing.T) {
 	t.Run("frontmatter preserved in bundle", func(t *testing.T) {
 		t.Parallel()
 
-		data, err := os.ReadFile(filepath.Join(outputDir, "markdown", "using-k6", "thresholds.md"))
+		data, err := fsext.ReadFile(afs, filepath.Join(outputDir, "markdown", "using-k6", "thresholds.md"))
 		if err != nil {
 			t.Fatalf("read thresholds.md: %v", err)
 		}
@@ -447,7 +449,7 @@ func TestTransformedMarkdownContent(t *testing.T) {
 	t.Run("version placeholder preserved in bundle", func(t *testing.T) {
 		t.Parallel()
 
-		data, err := os.ReadFile(filepath.Join(outputDir, "markdown", "javascript-api", "k6-http", "get.md"))
+		data, err := fsext.ReadFile(afs, filepath.Join(outputDir, "markdown", "javascript-api", "k6-http", "get.md"))
 		if err != nil {
 			t.Fatalf("read get.md: %v", err)
 		}
@@ -462,15 +464,15 @@ func TestTransformedMarkdownContent(t *testing.T) {
 func TestBestPracticesWritten(t *testing.T) {
 	t.Parallel()
 
+	afs, docsPath := setupMockDocs(t)
 	version := "v0.99.x"
-	docsPath := setupMockDocs(t, version)
-	outputDir := filepath.Join(t.TempDir(), "output")
+	outputDir := "/output-bestpractices"
 
-	if err := run(version, docsPath, outputDir); err != nil {
+	if err := run(version, docsPath, outputDir, afs); err != nil {
 		t.Fatalf("run: %v", err)
 	}
 
-	data, err := os.ReadFile(filepath.Join(outputDir, "best_practices.md"))
+	data, err := fsext.ReadFile(afs, filepath.Join(outputDir, "best_practices.md"))
 	if err != nil {
 		t.Fatalf("read best_practices.md: %v", err)
 	}
@@ -735,29 +737,30 @@ func TestPopulateChildren(t *testing.T) {
 func TestSlugCollisionPrefersIndex(t *testing.T) {
 	t.Parallel()
 
+	afs := fsext.NewMemMapFs()
 	version := "v0.99.x"
-	root := t.TempDir()
+	root := "/collision-test"
 	versionRoot := filepath.Join(root, "docs", "sources", "k6", version)
 
 	// Create a regular file and an _index.md that produce the same slug.
 	// javascript-api/k6-http/cookiejar.md  -> slug: javascript-api/k6-http/cookiejar
 	// javascript-api/k6-http/cookiejar/_index.md -> slug: javascript-api/k6-http/cookiejar
-	writeFile(t, filepath.Join(versionRoot, "_index.md"), "---\ntitle: root\n---\n")
-	writeFile(t, filepath.Join(versionRoot, "javascript-api", "_index.md"), "---\ntitle: 'JS API'\nweight: 1\n---\n")
-	writeFile(t, filepath.Join(versionRoot, "javascript-api", "k6-http", "_index.md"), "---\ntitle: 'k6/http'\nweight: 1\n---\n")
-	writeFile(t, filepath.Join(versionRoot, "javascript-api", "k6-http", "cookiejar.md"),
+	writeFile(t, afs, filepath.Join(versionRoot, "_index.md"), "---\ntitle: root\n---\n")
+	writeFile(t, afs, filepath.Join(versionRoot, "javascript-api", "_index.md"), "---\ntitle: 'JS API'\nweight: 1\n---\n")
+	writeFile(t, afs, filepath.Join(versionRoot, "javascript-api", "k6-http", "_index.md"), "---\ntitle: 'k6/http'\nweight: 1\n---\n")
+	writeFile(t, afs, filepath.Join(versionRoot, "javascript-api", "k6-http", "cookiejar.md"),
 		"---\ntitle: 'cookiejar function'\nweight: 10\n---\n\nA function.\n")
-	writeFile(t, filepath.Join(versionRoot, "javascript-api", "k6-http", "cookiejar", "_index.md"),
+	writeFile(t, afs, filepath.Join(versionRoot, "javascript-api", "k6-http", "cookiejar", "_index.md"),
 		"---\ntitle: 'CookieJar class'\nweight: 20\n---\n\nA class with children.\n")
-	writeFile(t, filepath.Join(versionRoot, "javascript-api", "k6-http", "cookiejar", "set.md"),
+	writeFile(t, afs, filepath.Join(versionRoot, "javascript-api", "k6-http", "cookiejar", "set.md"),
 		"---\ntitle: 'set'\nweight: 1\n---\n\nSet a cookie.\n")
 
-	outputDir := filepath.Join(t.TempDir(), "output")
-	if err := run(version, root, outputDir); err != nil {
+	outputDir := "/output-collision"
+	if err := run(version, root, outputDir, afs); err != nil {
 		t.Fatalf("run: %v", err)
 	}
 
-	data, err := os.ReadFile(filepath.Join(outputDir, "sections.json"))
+	data, err := fsext.ReadFile(afs, filepath.Join(outputDir, "sections.json"))
 	if err != nil {
 		t.Fatalf("read sections.json: %v", err)
 	}
@@ -792,22 +795,25 @@ func TestSlugCollisionPrefersIndex(t *testing.T) {
 func TestRunWithRealDocs(t *testing.T) {
 	t.Parallel()
 
-	k6DocsPath := os.Getenv("K6_DOCS_PATH")
+	afs := fsext.NewOsFs()
+
+	k6DocsPath, _ := syscall.Getenv("K6_DOCS_PATH")
 	if k6DocsPath == "" {
-		k6DocsPath = filepath.Join(os.Getenv("HOME"), "grafana", "k6-docs")
+		home, _ := syscall.Getenv("HOME")
+		k6DocsPath = filepath.Join(home, "grafana", "k6-docs")
 	}
-	if _, err := os.Stat(k6DocsPath); err != nil {
+	if _, err := afs.Stat(k6DocsPath); err != nil {
 		t.Skipf("skipping integration test: k6-docs not found at %s", k6DocsPath)
 	}
 
 	outputDir := filepath.Join(t.TempDir(), "real-output")
 	version := "v1.5.x"
 
-	if err := run(version, k6DocsPath, outputDir); err != nil {
+	if err := run(version, k6DocsPath, outputDir, afs); err != nil {
 		t.Fatalf("run with real docs: %v", err)
 	}
 
-	idx, bySlug := loadOutputIndex(t, outputDir, version)
+	idx, bySlug := loadOutputIndex(t, afs, outputDir, version)
 
 	// Should have a reasonable number of sections.
 	if len(idx.Sections) < 50 {
@@ -835,7 +841,7 @@ func TestRunWithRealDocs(t *testing.T) {
 	// shared shortcodes resolved but frontmatter/other shortcodes preserved
 	// (they are stripped at runtime).
 	checksPath := filepath.Join(outputDir, "markdown", "using-k6", "checks.md")
-	checksData, err := os.ReadFile(checksPath)
+	checksData, err := fsext.ReadFile(afs, checksPath)
 	if err != nil {
 		t.Fatalf("read prepared checks.md: %v", err)
 	}
@@ -848,7 +854,7 @@ func TestRunWithRealDocs(t *testing.T) {
 	}
 
 	// best_practices.md should exist.
-	if _, err := os.Stat(filepath.Join(outputDir, "best_practices.md")); err != nil {
+	if _, err := afs.Stat(filepath.Join(outputDir, "best_practices.md")); err != nil {
 		t.Error("best_practices.md should exist in output")
 	}
 }
@@ -859,14 +865,14 @@ func TestRunWithExactVersionNoVPrefix(t *testing.T) {
 	// The docs directory uses the wildcard form v0.99.x. When the caller
 	// passes an exact version without the "v" prefix (e.g. "0.99.3"),
 	// MapToWildcard must still produce "v0.99.x" to match the directory.
-	docsPath := setupMockDocs(t, "v0.99.x")
-	outputDir := filepath.Join(t.TempDir(), "output")
+	afs, docsPath := setupMockDocs(t)
+	outputDir := "/output-novprefix"
 
-	if err := run("0.99.3", docsPath, outputDir); err != nil {
+	if err := run("0.99.3", docsPath, outputDir, afs); err != nil {
 		t.Fatalf("run with bare version (no v prefix): %v", err)
 	}
 
-	data, err := os.ReadFile(filepath.Join(outputDir, "sections.json"))
+	data, err := fsext.ReadFile(afs, filepath.Join(outputDir, "sections.json"))
 	if err != nil {
 		t.Fatalf("read sections.json: %v", err)
 	}
@@ -888,10 +894,10 @@ func TestRunWithExactVersionNoVPrefix(t *testing.T) {
 func TestMissingVersion(t *testing.T) {
 	t.Parallel()
 
-	docsPath := setupMockDocs(t, "v0.99.x")
-	outputDir := filepath.Join(t.TempDir(), "output")
+	afs, docsPath := setupMockDocs(t)
+	outputDir := "/output-missing"
 
-	err := run("v999.999.x", docsPath, outputDir)
+	err := run("v999.999.x", docsPath, outputDir, afs)
 	if err == nil {
 		t.Fatal("expected error for missing version, got nil")
 	}
@@ -906,15 +912,15 @@ func TestRunWithExactVersion(t *testing.T) {
 	// The docs directory uses the wildcard form v0.99.x, but the caller
 	// passes an exact version like v0.99.3. The run function must map the
 	// exact version to the wildcard directory automatically.
-	docsPath := setupMockDocs(t, "v0.99.x")
-	outputDir := filepath.Join(t.TempDir(), "output")
+	afs, docsPath := setupMockDocs(t)
+	outputDir := "/output-exact"
 
-	if err := run("v0.99.3", docsPath, outputDir); err != nil {
+	if err := run("v0.99.3", docsPath, outputDir, afs); err != nil {
 		t.Fatalf("run with exact version: %v", err)
 	}
 
 	// The index should preserve the original exact version.
-	data, err := os.ReadFile(filepath.Join(outputDir, "sections.json"))
+	data, err := fsext.ReadFile(afs, filepath.Join(outputDir, "sections.json"))
 	if err != nil {
 		t.Fatalf("read sections.json: %v", err)
 	}

@@ -7,10 +7,13 @@
 package main
 
 import (
+	"context"
 	_ "embed"
 	"encoding/json"
+	"errors"
 	"flag"
 	"fmt"
+	"io"
 	"io/fs"
 	"log"
 	"os"
@@ -20,17 +23,20 @@ import (
 	"strings"
 
 	docs "github.com/grafana/xk6-subcommand-docs"
+	"go.k6.io/k6/lib/fsext"
 	"gopkg.in/yaml.v3"
 )
 
-// includedCategories lists the top-level directories we keep.
-var includedCategories = map[string]bool{
-	"javascript-api":   true,
-	"using-k6":         true,
-	"using-k6-browser": true,
-	"testing-guides":   true,
-	"examples":         true,
-	"results-output":   true,
+// includedCategories returns the set of top-level directories we keep.
+func includedCategories() map[string]bool {
+	return map[string]bool{
+		"javascript-api":   true,
+		"using-k6":         true,
+		"using-k6-browser": true,
+		"testing-guides":   true,
+		"examples":         true,
+		"results-output":   true,
+	}
 }
 
 // frontmatter holds the YAML fields we extract from each doc file.
@@ -58,14 +64,16 @@ func main() {
 		log.Fatal("--k6-version is required")
 	}
 
-	if err := run(k6Version, k6DocsPath, outputDir); err != nil {
+	afs := fsext.NewOsFs()
+	if err := run(k6Version, k6DocsPath, outputDir, afs); err != nil {
 		log.Fatal(err)
 	}
 }
 
-func run(k6Version, k6DocsPath, outputDir string) error {
+//nolint:forbidigo
+func run(k6Version, k6DocsPath, outputDir string, afs fsext.Fs) error {
 	// Step 1: ensure we have the k6-docs repo.
-	docsPath, cleanup, err := ensureDocsRepo(k6DocsPath)
+	docsPath, cleanup, err := ensureDocsRepo(k6DocsPath, afs, os.Stderr, os.MkdirTemp)
 	if err != nil {
 		return err
 	}
@@ -77,19 +85,19 @@ func run(k6Version, k6DocsPath, outputDir string) error {
 	// exact versions like "v1.6.1" to the wildcard form for the path lookup.
 	docsVersion := docs.MapToWildcard(k6Version)
 	versionRoot := filepath.Join(docsPath, "docs", "sources", "k6", docsVersion)
-	if _, err := os.Stat(versionRoot); err != nil {
+	if _, err := afs.Stat(filepath.Clean(versionRoot)); err != nil {
 		return fmt.Errorf("version root not found: %w", err)
 	}
 
 	// Step 2: build shared content map.
-	sharedContent, err := buildSharedContentMap(filepath.Join(versionRoot, "shared"))
+	sharedContent, err := buildSharedContentMap(afs, filepath.Join(versionRoot, "shared"))
 	if err != nil {
 		return fmt.Errorf("build shared content: %w", err)
 	}
 
 	// Step 3: walk documentation files and collect sections.
 	markdownDir := filepath.Join(outputDir, "markdown")
-	sections, err := walkAndProcess(versionRoot, markdownDir, k6Version, sharedContent)
+	sections, err := walkAndProcess(afs, versionRoot, markdownDir, sharedContent)
 	if err != nil {
 		return fmt.Errorf("walk docs: %w", err)
 	}
@@ -102,66 +110,77 @@ func run(k6Version, k6DocsPath, outputDir string) error {
 		Version:  k6Version,
 		Sections: sections,
 	}
-	if err := writeSectionsJSON(outputDir, idx); err != nil {
+	if err := writeSectionsJSON(afs, outputDir, idx); err != nil {
 		return err
 	}
 
 	// Step 6: write best_practices.md.
-	if err := writeBestPractices(outputDir); err != nil {
+	if err := writeBestPractices(afs, outputDir); err != nil {
 		return err
 	}
 
-	log.Printf("Done: %d sections written to %s", len(sections), outputDir)
+	_, _ = fmt.Fprintln(os.Stderr, "Done: sections written")
 	return nil
 }
 
 // ensureDocsRepo returns the path to the k6-docs repo. If k6DocsPath is empty,
 // it clones the repo into a temp directory and returns a cleanup function.
-func ensureDocsRepo(k6DocsPath string) (string, func(), error) {
+// The mkTempDir and stderr parameters are injected from run() which is the
+// bootstrap entry point with os package access.
+func ensureDocsRepo(
+	k6DocsPath string, afs fsext.Fs, stderr io.Writer,
+	mkTempDir func(string, string) (string, error),
+) (string, func(), error) {
 	if k6DocsPath != "" {
 		return k6DocsPath, nil, nil
 	}
 
-	tmpDir, err := os.MkdirTemp("", "k6-docs-*")
+	tmpDir, err := mkTempDir("", "k6-docs-*")
 	if err != nil {
 		return "", nil, fmt.Errorf("create temp dir: %w", err)
 	}
 
 	log.Println("Cloning k6-docs repository...")
-	cmd := exec.Command("git", "clone", "--depth", "1", "https://github.com/grafana/k6-docs.git", tmpDir)
-	cmd.Stdout = os.Stderr
-	cmd.Stderr = os.Stderr
+	cmd := exec.CommandContext(context.Background(),
+		"git", "clone", "--depth", "1",
+		"https://github.com/grafana/k6-docs.git", ".")
+	cmd.Dir = tmpDir
+	cmd.Stdout = stderr
+	cmd.Stderr = stderr
 	if err := cmd.Run(); err != nil {
-		os.RemoveAll(tmpDir)
+		_ = afs.RemoveAll(tmpDir)
 		return "", nil, fmt.Errorf("clone k6-docs: %w", err)
 	}
 
-	cleanup := func() { os.RemoveAll(tmpDir) }
+	cleanup := func() { _ = afs.RemoveAll(tmpDir) }
 	return tmpDir, cleanup, nil
 }
 
 // buildSharedContentMap reads all .md files under the shared directory and
 // returns a map keyed by the relative path (e.g. "javascript-api/k6-http.md").
-func buildSharedContentMap(sharedDir string) (map[string]string, error) {
+func buildSharedContentMap(afs fsext.Fs, sharedDir string) (map[string]string, error) {
 	m := make(map[string]string)
 
-	info, err := os.Stat(sharedDir)
-	if err != nil || !info.IsDir() {
+	info, err := afs.Stat(filepath.Clean(sharedDir))
+	if errors.Is(err, fs.ErrNotExist) || (err == nil && !info.IsDir()) {
 		return m, nil
 	}
+	if err != nil {
+		return m, err
+	}
 
-	err = filepath.WalkDir(sharedDir, func(path string, d fs.DirEntry, err error) error {
+	err = fsext.Walk(afs, sharedDir, func(path string, info fs.FileInfo, err error) error {
 		if err != nil {
 			return err
 		}
-		if d.IsDir() || !strings.HasSuffix(path, ".md") {
+		if info.IsDir() || !strings.HasSuffix(path, ".md") {
 			return nil
 		}
 		rel, err := filepath.Rel(sharedDir, path)
 		if err != nil {
 			return err
 		}
-		data, err := os.ReadFile(path)
+		data, err := fsext.ReadFile(afs, filepath.Clean(path))
 		if err != nil {
 			return fmt.Errorf("read shared %s: %w", rel, err)
 		}
@@ -183,7 +202,7 @@ func isIncluded(relPath string) bool {
 	topDir := parts[0]
 
 	// Direct category match.
-	if includedCategories[topDir] {
+	if includedCategories()[topDir] {
 		return true
 	}
 
@@ -218,7 +237,7 @@ func parseFrontmatter(content string) (frontmatter, error) {
 func deduplicateYAMLKeys(yamlBlock string) string {
 	seen := make(map[string]bool)
 	var lines []string
-	for _, line := range strings.Split(yamlBlock, "\n") {
+	for line := range strings.SplitSeq(yamlBlock, "\n") {
 		if idx := strings.Index(line, ":"); idx > 0 && len(line) > 0 && line[0] != ' ' && line[0] != '\t' && line[0] != '#' {
 			key := strings.TrimSpace(line[:idx])
 			if seen[key] {
@@ -244,15 +263,17 @@ func slugFromRelPath(relPath string) string {
 
 // categoryFromSlug extracts the first path segment as the category.
 func categoryFromSlug(slug string) string {
-	if i := strings.Index(slug, "/"); i != -1 {
-		return slug[:i]
+	if before, _, found := strings.Cut(slug, "/"); found {
+		return before
 	}
 	return slug
 }
 
 // walkAndProcess walks the version root, processes included .md files,
 // and returns the collected sections.
-func walkAndProcess(versionRoot, markdownDir, k6Version string, sharedContent map[string]string) ([]docs.Section, error) {
+func walkAndProcess(
+	afs fsext.Fs, versionRoot, markdownDir string, sharedContent map[string]string,
+) ([]docs.Section, error) {
 	// Use a map to deduplicate sections by slug. When a slug collision
 	// occurs (e.g. cookiejar.md and cookiejar/_index.md both produce
 	// "javascript-api/k6-http/cookiejar"), prefer the _index.md entry
@@ -260,8 +281,8 @@ func walkAndProcess(versionRoot, markdownDir, k6Version string, sharedContent ma
 	sectionMap := make(map[string]docs.Section)
 	var slugOrder []string
 
-	err := filepath.WalkDir(versionRoot, func(path string, d fs.DirEntry, err error) error {
-		return processEntry(path, d, err, versionRoot, markdownDir, sharedContent, sectionMap, &slugOrder)
+	err := fsext.Walk(afs, versionRoot, func(path string, info fs.FileInfo, err error) error {
+		return processEntry(afs, path, info, err, versionRoot, markdownDir, sharedContent, sectionMap, &slugOrder)
 	})
 
 	// Rebuild the slice in walk order.
@@ -274,7 +295,8 @@ func walkAndProcess(versionRoot, markdownDir, k6Version string, sharedContent ma
 }
 
 func processEntry(
-	path string, d fs.DirEntry, err error,
+	afs fsext.Fs,
+	path string, info fs.FileInfo, err error,
 	versionRoot, markdownDir string,
 	sharedContent map[string]string,
 	sectionMap map[string]docs.Section,
@@ -290,7 +312,7 @@ func processEntry(
 	}
 	rel = filepath.ToSlash(rel)
 
-	if d.IsDir() {
+	if info.IsDir() {
 		if rel == "shared" {
 			return filepath.SkipDir
 		}
@@ -311,7 +333,7 @@ func processEntry(
 		return nil
 	}
 
-	content, err := os.ReadFile(path)
+	content, err := fsext.ReadFile(afs, filepath.Clean(path))
 	if err != nil {
 		return fmt.Errorf("read %s: %w", rel, err)
 	}
@@ -329,10 +351,10 @@ func processEntry(
 
 	// Write transformed markdown.
 	outPath := filepath.Join(markdownDir, rel)
-	if err := os.MkdirAll(filepath.Dir(outPath), 0o755); err != nil {
+	if err := afs.MkdirAll(filepath.Dir(outPath), 0o750); err != nil {
 		return fmt.Errorf("mkdir %s: %w", filepath.Dir(outPath), err)
 	}
-	if err := os.WriteFile(outPath, []byte(transformed), 0o644); err != nil {
+	if err := fsext.WriteFile(afs, outPath, []byte(transformed), 0o600); err != nil {
 		return fmt.Errorf("write %s: %w", outPath, err)
 	}
 
@@ -413,8 +435,8 @@ func populateChildren(sections []docs.Section) {
 }
 
 // writeSectionsJSON writes the index to sections.json in the output directory.
-func writeSectionsJSON(outputDir string, idx docs.Index) error {
-	if err := os.MkdirAll(outputDir, 0o755); err != nil {
+func writeSectionsJSON(afs fsext.Fs, outputDir string, idx docs.Index) error {
+	if err := afs.MkdirAll(outputDir, 0o750); err != nil {
 		return fmt.Errorf("create output dir: %w", err)
 	}
 
@@ -424,7 +446,7 @@ func writeSectionsJSON(outputDir string, idx docs.Index) error {
 	}
 
 	outPath := filepath.Join(outputDir, "sections.json")
-	if err := os.WriteFile(outPath, data, 0o644); err != nil {
+	if err := fsext.WriteFile(afs, outPath, data, 0o600); err != nil {
 		return fmt.Errorf("write sections.json: %w", err)
 	}
 
@@ -433,13 +455,13 @@ func writeSectionsJSON(outputDir string, idx docs.Index) error {
 }
 
 // writeBestPractices writes a comprehensive best practices guide.
-func writeBestPractices(outputDir string) error {
-	if err := os.MkdirAll(outputDir, 0o755); err != nil {
+func writeBestPractices(afs fsext.Fs, outputDir string) error {
+	if err := afs.MkdirAll(outputDir, 0o750); err != nil {
 		return fmt.Errorf("create output dir: %w", err)
 	}
 
 	outPath := filepath.Join(outputDir, "best_practices.md")
-	if err := os.WriteFile(outPath, []byte(bestPracticesContent), 0o644); err != nil {
+	if err := fsext.WriteFile(afs, outPath, []byte(bestPracticesContent), 0o600); err != nil {
 		return fmt.Errorf("write best_practices.md: %w", err)
 	}
 

@@ -2,19 +2,36 @@ package docs
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
-	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"go.k6.io/k6/cmd/state"
+	"go.k6.io/k6/lib/fsext"
 )
 
-// setupTestCache creates a temp directory with sections.json and markdown files,
-// returning the cache dir path and a loaded Index.
-func setupTestCache(t *testing.T) (string, *Index) {
+func newTestGlobalState(t *testing.T, afs fsext.Fs) *state.GlobalState {
 	t.Helper()
 
-	dir := t.TempDir()
+	gs := state.NewGlobalState(context.Background())
+	gs.FS = afs
+	gs.Env = map[string]string{}
+
+	return gs
+}
+
+// setupTestCache creates an in-memory directory with sections.json and markdown files,
+// returning the filesystem, cache dir path, and a loaded Index.
+func setupTestCache(t *testing.T) (fsext.Fs, string, *Index) {
+	t.Helper()
+
+	afs := fsext.NewMemMapFs()
+	dir := "/tmp/testcache"
+	if err := afs.MkdirAll(dir, 0o755); err != nil {
+		t.Fatalf("MkdirAll: %v", err)
+	}
 
 	sections := []Section{
 		{
@@ -108,7 +125,7 @@ func setupTestCache(t *testing.T) (string, *Index) {
 	if err != nil {
 		t.Fatalf("marshal index: %v", err)
 	}
-	if err := os.WriteFile(filepath.Join(dir, "sections.json"), data, 0o644); err != nil {
+	if err := fsext.WriteFile(afs, filepath.Join(dir, "sections.json"), data, 0o644); err != nil {
 		t.Fatalf("write sections.json: %v", err)
 	}
 
@@ -128,27 +145,27 @@ func setupTestCache(t *testing.T) (string, *Index) {
 
 	for relPath, content := range mdFiles {
 		fullPath := filepath.Join(dir, "markdown", relPath)
-		if err := os.MkdirAll(filepath.Dir(fullPath), 0o755); err != nil {
+		if err := afs.MkdirAll(filepath.Dir(fullPath), 0o755); err != nil {
 			t.Fatalf("mkdir %s: %v", filepath.Dir(fullPath), err)
 		}
-		if err := os.WriteFile(fullPath, []byte(content), 0o644); err != nil {
+		if err := fsext.WriteFile(afs, fullPath, []byte(content), 0o644); err != nil {
 			t.Fatalf("write %s: %v", fullPath, err)
 		}
 	}
 
 	// best_practices.md lives at the cache root (same as cmd/prepare output).
 	bpPath := filepath.Join(dir, "best_practices.md")
-	if err := os.WriteFile(bpPath, []byte("---\ntitle: Best Practices\n---\nFollow these best practices for k6.\n"), 0o644); err != nil {
+	if err := fsext.WriteFile(afs, bpPath, []byte("---\ntitle: Best Practices\n---\nFollow these best practices for k6.\n"), 0o644); err != nil {
 		t.Fatalf("write best_practices.md: %v", err)
 	}
 
-	// Reload from disk so bySlug map is built.
-	idx, err = LoadIndex(dir)
+	// Reload from the in-memory FS so bySlug map is built.
+	idx, err = LoadIndex(afs, dir)
 	if err != nil {
 		t.Fatalf("LoadIndex: %v", err)
 	}
 
-	return dir, idx
+	return afs, dir, idx
 }
 
 // checkAlignment verifies that all listing lines (starting with "- " or "  ")
@@ -269,7 +286,7 @@ func TestTruncate(t *testing.T) {
 
 	tests := []struct {
 		input string
-		max   int
+		limit int
 		want  string
 	}{
 		{"short", 80, "short"},
@@ -283,9 +300,9 @@ func TestTruncate(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.input, func(t *testing.T) {
 			t.Parallel()
-			got := truncate(tt.input, tt.max)
+			got := truncate(tt.input, tt.limit)
 			if got != tt.want {
-				t.Errorf("truncate(%q, %d) = %q, want %q", tt.input, tt.max, got, tt.want)
+				t.Errorf("truncate(%q, %d) = %q, want %q", tt.input, tt.limit, got, tt.want)
 			}
 		})
 	}
@@ -368,7 +385,7 @@ func TestPrintAlignedList(t *testing.T) {
 func TestPrintTOC(t *testing.T) {
 	t.Parallel()
 
-	_, idx := setupTestCache(t)
+	_, _, idx := setupTestCache(t)
 
 	var buf bytes.Buffer
 	printTOC(&buf, idx, "v0.55.x")
@@ -411,8 +428,8 @@ func TestPrintTOC(t *testing.T) {
 
 	// Check alignment within each category section.
 	// Split by category headers and check each section.
-	sections := strings.Split(out, "## ")
-	for _, section := range sections[1:] { // skip the header before first ##
+	catSections := strings.Split(out, "## ")
+	for _, section := range catSections[1:] { // skip the header before first ##
 		checkAlignment(t, "printTOC", "  "+strings.SplitN(section, "\n", 2)[1])
 	}
 }
@@ -420,7 +437,7 @@ func TestPrintTOC(t *testing.T) {
 func TestPrintSection(t *testing.T) {
 	t.Parallel()
 
-	cacheDir, idx := setupTestCache(t)
+	afs, cacheDir, idx := setupTestCache(t)
 
 	t.Run("section with content and children", func(t *testing.T) {
 		t.Parallel()
@@ -431,7 +448,7 @@ func TestPrintSection(t *testing.T) {
 		}
 
 		var buf bytes.Buffer
-		printSection(&buf, idx, sec, cacheDir, "v0.55.x")
+		printSection(afs, &buf, idx, sec, cacheDir, "v0.55.x")
 		out := buf.String()
 
 		// Content from markdown file (frontmatter stripped by Transform).
@@ -466,7 +483,7 @@ func TestPrintSection(t *testing.T) {
 		}
 
 		var buf bytes.Buffer
-		printSection(&buf, idx, sec, cacheDir, "v0.55.x")
+		printSection(afs, &buf, idx, sec, cacheDir, "v0.55.x")
 		out := buf.String()
 
 		if !strings.Contains(out, "http.get(url)") {
@@ -481,7 +498,7 @@ func TestPrintSection(t *testing.T) {
 func TestPrintList(t *testing.T) {
 	t.Parallel()
 
-	_, idx := setupTestCache(t)
+	_, _, idx := setupTestCache(t)
 
 	t.Run("section with children", func(t *testing.T) {
 		t.Parallel()
@@ -536,13 +553,13 @@ func TestPrintList(t *testing.T) {
 func TestPrintSearch(t *testing.T) {
 	t.Parallel()
 
-	cacheDir, idx := setupTestCache(t)
+	afs, cacheDir, idx := setupTestCache(t)
 
 	t.Run("match in title groups by parent", func(t *testing.T) {
 		t.Parallel()
 
 		var buf bytes.Buffer
-		printSearch(&buf, idx, "Scenarios", cacheDir, "v0.55.x")
+		printSearch(afs, &buf, idx, "Scenarios", cacheDir, "v0.55.x")
 		out := buf.String()
 
 		if !strings.Contains(out, `Results for "Scenarios"`) {
@@ -561,7 +578,7 @@ func TestPrintSearch(t *testing.T) {
 		t.Parallel()
 
 		var buf bytes.Buffer
-		printSearch(&buf, idx, "GET request", cacheDir, "v0.55.x")
+		printSearch(afs, &buf, idx, "GET request", cacheDir, "v0.55.x")
 		out := buf.String()
 
 		// Should be grouped under k6-http.
@@ -578,7 +595,7 @@ func TestPrintSearch(t *testing.T) {
 		t.Parallel()
 
 		var buf bytes.Buffer
-		printSearch(&buf, idx, "WebSocket example content", cacheDir, "v0.55.x")
+		printSearch(afs, &buf, idx, "WebSocket example content", cacheDir, "v0.55.x")
 		out := buf.String()
 
 		if !strings.Contains(out, "examples:") {
@@ -594,7 +611,7 @@ func TestPrintSearch(t *testing.T) {
 
 		var buf bytes.Buffer
 		// Search for "k6" which should match multiple groups.
-		printSearch(&buf, idx, "k6", cacheDir, "v0.55.x")
+		printSearch(afs, &buf, idx, "k6", cacheDir, "v0.55.x")
 		checkGroupsSorted(t, buf.String())
 	})
 
@@ -602,7 +619,7 @@ func TestPrintSearch(t *testing.T) {
 		t.Parallel()
 
 		var buf bytes.Buffer
-		printSearch(&buf, idx, "zzzznotfound", cacheDir, "v0.55.x")
+		printSearch(afs, &buf, idx, "zzzznotfound", cacheDir, "v0.55.x")
 		out := buf.String()
 
 		if !strings.Contains(out, "(no results)") {
@@ -614,7 +631,7 @@ func TestPrintSearch(t *testing.T) {
 func TestPrintTopLevelList(t *testing.T) {
 	t.Parallel()
 
-	_, idx := setupTestCache(t)
+	_, _, idx := setupTestCache(t)
 
 	var buf bytes.Buffer
 	printTopLevelList(&buf, idx)
@@ -648,8 +665,10 @@ func TestDynamicAlignment(t *testing.T) {
 	// Build an index with children of varying name lengths under one parent.
 	idx := &Index{
 		Sections: []Section{
-			{Slug: "parent", Title: "Parent", Description: "Parent topic.", Weight: 1, Category: "parent",
-				Children: []string{"parent/ab", "parent/a-very-long-child-name"}, IsIndex: true},
+			{
+				Slug: "parent", Title: "Parent", Description: "Parent topic.", Weight: 1, Category: "parent",
+				Children: []string{"parent/ab", "parent/a-very-long-child-name"}, IsIndex: true,
+			},
 			{Slug: "parent/ab", Title: "AB", Description: "Short name child.", Weight: 1, Category: "parent"},
 			{Slug: "parent/a-very-long-child-name", Title: "Long", Description: "Long name child.", Weight: 2, Category: "parent"},
 		},
@@ -704,10 +723,10 @@ func TestDynamicAlignment(t *testing.T) {
 func TestPrintBestPractices(t *testing.T) {
 	t.Parallel()
 
-	cacheDir, _ := setupTestCache(t)
+	afs, cacheDir, _ := setupTestCache(t)
 
 	var buf bytes.Buffer
-	err := printBestPractices(&buf, cacheDir, "v0.55.x")
+	err := printBestPractices(afs, &buf, cacheDir, "v0.55.x")
 	if err != nil {
 		t.Fatalf("printBestPractices: %v", err)
 	}
@@ -725,10 +744,14 @@ func TestPrintBestPractices(t *testing.T) {
 func TestPrintBestPracticesMissing(t *testing.T) {
 	t.Parallel()
 
-	dir := t.TempDir()
+	afs := fsext.NewMemMapFs()
+	dir := "/tmp/missing-bp"
+	if err := afs.MkdirAll(dir, 0o755); err != nil {
+		t.Fatal(err)
+	}
 	// No best_practices.md — should return error.
 	var buf bytes.Buffer
-	err := printBestPractices(&buf, dir, "v0.55.x")
+	err := printBestPractices(afs, &buf, dir, "v0.55.x")
 	if err == nil {
 		t.Fatal("printBestPractices: expected error for missing file, got nil")
 	}
@@ -737,10 +760,10 @@ func TestPrintBestPracticesMissing(t *testing.T) {
 func TestPrintAll(t *testing.T) {
 	t.Parallel()
 
-	cacheDir, idx := setupTestCache(t)
+	afs, cacheDir, idx := setupTestCache(t)
 
 	var buf bytes.Buffer
-	printAll(&buf, idx, cacheDir, "v0.55.x")
+	printAll(afs, &buf, idx, cacheDir, "v0.55.x")
 	out := buf.String()
 
 	if !strings.Contains(out, "k6 Documentation (v0.55.x)") {
@@ -770,11 +793,12 @@ func TestPrintAll(t *testing.T) {
 func TestCommandIntegration(t *testing.T) {
 	t.Parallel()
 
-	cacheDir, _ := setupTestCache(t)
+	afs, cacheDir, _ := setupTestCache(t)
+	gs := newTestGlobalState(t, afs)
 
 	run := func(t *testing.T, args ...string) string {
 		t.Helper()
-		cmd := newCmd(nil)
+		cmd := newCmd(gs)
 		var buf bytes.Buffer
 		cmd.SetOut(&buf)
 		cmd.SetErr(&buf)
@@ -861,7 +885,7 @@ func TestCommandIntegration(t *testing.T) {
 	t.Run("unknown topic returns error", func(t *testing.T) {
 		t.Parallel()
 
-		cmd := newCmd(nil)
+		cmd := newCmd(gs)
 		var buf bytes.Buffer
 		cmd.SetOut(&buf)
 		cmd.SetErr(&buf)

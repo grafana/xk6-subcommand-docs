@@ -3,10 +3,11 @@ package docs
 import (
 	"fmt"
 	"io"
-	"os"
 	"path/filepath"
 	"sort"
 	"strings"
+
+	"go.k6.io/k6/lib/fsext"
 )
 
 // childName returns the short name of a child relative to its parent.
@@ -41,12 +42,12 @@ func slugToArgs(slug string) string {
 	return strings.Join(parts, " ")
 }
 
-// truncate shortens s to max characters, appending "..." if truncated.
-func truncate(s string, max int) string {
-	if len(s) <= max {
+// truncate shortens s to limit characters, appending "..." if truncated.
+func truncate(s string, limit int) string {
+	if len(s) <= limit {
 		return s
 	}
-	return s[:max-3] + "..."
+	return s[:limit-3] + "..."
 }
 
 // listItem is a name+description pair for aligned list rendering.
@@ -82,24 +83,24 @@ func printAlignedList(w io.Writer, items []listItem, indent string) {
 			continue
 		}
 		seen[item.Name] = true
-		fmt.Fprintf(w, fmtStr, item.Name, truncate(item.Description, 80))
+		_, _ = fmt.Fprintf(w, fmtStr, item.Name, truncate(item.Description, 80))
 	}
 }
 
 // printTOC prints the table of contents grouped by category.
 func printTOC(w io.Writer, idx *Index, version string) {
-	fmt.Fprintf(w, "k6 Documentation (%s)\n", version)
-	fmt.Fprintln(w, "Use: k6 x docs <topic>")
+	_, _ = fmt.Fprintf(w, "k6 Documentation (%s)\n", version)
+	_, _ = fmt.Fprintln(w, "Use: k6 x docs <topic>")
 
 	topLevel := idx.TopLevel()
 
 	for _, cat := range topLevel {
-		fmt.Fprintf(w, "\n## %s\n", cat.Title)
+		_, _ = fmt.Fprintf(w, "\n## %s\n", cat.Title)
 
 		children := idx.Children(cat.Slug)
 		if len(children) == 0 {
 			// Show the category itself if it has no children.
-			fmt.Fprintf(w, "- %s %s\n", childName(cat.Slug, ""), truncate(cat.Description, 80))
+			_, _ = fmt.Fprintf(w, "- %s %s\n", childName(cat.Slug, ""), truncate(cat.Description, 80))
 			continue
 		}
 
@@ -111,18 +112,18 @@ func printTOC(w io.Writer, idx *Index, version string) {
 			})
 		}
 		printAlignedList(w, items, "- ")
-		fmt.Fprintf(w, "\n  → Usage: k6 x docs %s <topic>\n", cat.Slug)
+		_, _ = fmt.Fprintf(w, "\n  → Usage: k6 x docs %s <topic>\n", cat.Slug)
 	}
 }
 
 // printSection prints a section's markdown content, read from the cache dir.
 // If the section has children, a subtopics footer is appended.
-func printSection(w io.Writer, idx *Index, section *Section, cacheDir, version string) {
-	content := readAndTransform(cacheDir, section.RelPath, version)
+func printSection(afs fsext.Fs, w io.Writer, idx *Index, section *Section, cacheDir, version string) {
+	content := readAndTransform(afs, cacheDir, section.RelPath, version)
 	if content != "" {
-		fmt.Fprint(w, content)
+		_, _ = fmt.Fprint(w, content)
 		if !strings.HasSuffix(content, "\n") {
-			fmt.Fprintln(w)
+			_, _ = fmt.Fprintln(w)
 		}
 	}
 
@@ -133,10 +134,10 @@ func printSection(w io.Writer, idx *Index, section *Section, cacheDir, version s
 			names = append(names, childName(c.Slug, section.Slug))
 		}
 
-		fmt.Fprintln(w)
-		fmt.Fprintln(w, "---")
-		fmt.Fprintf(w, "Subtopics: %s\n", strings.Join(names, ", "))
-		fmt.Fprintf(w, "Use: k6 x docs %s <subtopic>\n", slugToArgs(section.Slug))
+		_, _ = fmt.Fprintln(w)
+		_, _ = fmt.Fprintln(w, "---")
+		_, _ = fmt.Fprintf(w, "Subtopics: %s\n", strings.Join(names, ", "))
+		_, _ = fmt.Fprintf(w, "Use: k6 x docs %s <subtopic>\n", slugToArgs(section.Slug))
 	}
 }
 
@@ -144,20 +145,20 @@ func printSection(w io.Writer, idx *Index, section *Section, cacheDir, version s
 func printList(w io.Writer, idx *Index, slug string) {
 	sec, ok := idx.Lookup(slug)
 	if !ok {
-		fmt.Fprintf(w, "Topic not found: %s\n", slug)
+		_, _ = fmt.Fprintf(w, "Topic not found: %s\n", slug)
 		return
 	}
 
 	children := idx.Children(slug)
 
-	fmt.Fprintf(w, "%s", sec.Title)
+	_, _ = fmt.Fprintf(w, "%s", sec.Title)
 	if sec.Description != "" {
-		fmt.Fprintf(w, " — %s", sec.Description)
+		_, _ = fmt.Fprintf(w, " — %s", sec.Description)
 	}
-	fmt.Fprintln(w)
+	_, _ = fmt.Fprintln(w)
 
 	if len(children) == 0 {
-		fmt.Fprintln(w, "\n  (no subtopics)")
+		_, _ = fmt.Fprintln(w, "\n  (no subtopics)")
 		return
 	}
 
@@ -196,21 +197,21 @@ func searchGroupKey(slug string) string {
 }
 
 // printSearch prints search results grouped hierarchically by topic.
-func printSearch(w io.Writer, idx *Index, term, cacheDir, version string) {
+func printSearch(afs fsext.Fs, w io.Writer, idx *Index, term, cacheDir, version string) {
 	readContent := func(slug string) string {
 		sec, ok := idx.Lookup(slug)
 		if !ok {
 			return ""
 		}
-		return readAndTransform(cacheDir, sec.RelPath, version)
+		return readAndTransform(afs, cacheDir, sec.RelPath, version)
 	}
 
 	results := idx.Search(term, readContent)
 
-	fmt.Fprintf(w, "Results for %q:\n", term)
+	_, _ = fmt.Fprintf(w, "Results for %q:\n", term)
 
 	if len(results) == 0 {
-		fmt.Fprintln(w, "\n  (no results)")
+		_, _ = fmt.Fprintln(w, "\n  (no results)")
 		return
 	}
 
@@ -260,9 +261,9 @@ func printSearch(w io.Writer, idx *Index, term, cacheDir, version string) {
 
 		// Print group header.
 		if groupSec != nil {
-			fmt.Fprintf(w, "%s: %s\n", key, truncate(groupSec.Description, 80))
+			_, _ = fmt.Fprintf(w, "%s: %s\n", key, truncate(groupSec.Description, 80))
 		} else {
-			fmt.Fprintf(w, "%s:\n", key)
+			_, _ = fmt.Fprintf(w, "%s:\n", key)
 		}
 
 		// Collect children (items that aren't the group header itself).
@@ -278,47 +279,47 @@ func printSearch(w io.Writer, idx *Index, term, cacheDir, version string) {
 		}
 		printAlignedList(w, items, "- ")
 
-		fmt.Fprintln(w)
+		_, _ = fmt.Fprintln(w)
 	}
 }
 
 // printBestPractices reads and prints the best_practices.md file from the cache.
-func printBestPractices(w io.Writer, cacheDir, version string) error {
+func printBestPractices(afs fsext.Fs, w io.Writer, cacheDir, version string) error {
 	path := filepath.Join(cacheDir, "best_practices.md")
-	data, err := os.ReadFile(path)
+	data, err := fsext.ReadFile(afs, path)
 	if err != nil {
 		return fmt.Errorf("read best practices: %w", err)
 	}
 	content := Transform(string(data), version)
-	fmt.Fprint(w, content)
+	_, _ = fmt.Fprint(w, content)
 	if !strings.HasSuffix(content, "\n") {
-		fmt.Fprintln(w)
+		_, _ = fmt.Fprintln(w)
 	}
 	return nil
 }
 
 // printAll prints all sections sequentially.
-func printAll(w io.Writer, idx *Index, cacheDir, version string) {
-	fmt.Fprintf(w, "k6 Documentation (%s)\n", version)
+func printAll(afs fsext.Fs, w io.Writer, idx *Index, cacheDir, version string) {
+	_, _ = fmt.Fprintf(w, "k6 Documentation (%s)\n", version)
 
 	for i := range idx.Sections {
 		sec := &idx.Sections[i]
-		content := readAndTransform(cacheDir, sec.RelPath, version)
+		content := readAndTransform(afs, cacheDir, sec.RelPath, version)
 		if content == "" {
 			continue
 		}
-		fmt.Fprint(w, content)
+		_, _ = fmt.Fprint(w, content)
 		if !strings.HasSuffix(content, "\n") {
-			fmt.Fprintln(w)
+			_, _ = fmt.Fprintln(w)
 		}
-		fmt.Fprintln(w)
+		_, _ = fmt.Fprintln(w)
 	}
 }
 
 // readMarkdown reads a markdown file from the cache directory.
-func readMarkdown(cacheDir, relPath string) string {
+func readMarkdown(afs fsext.Fs, cacheDir, relPath string) string {
 	path := filepath.Join(cacheDir, "markdown", relPath)
-	data, err := os.ReadFile(path)
+	data, err := fsext.ReadFile(afs, path)
 	if err != nil {
 		return ""
 	}
@@ -326,8 +327,8 @@ func readMarkdown(cacheDir, relPath string) string {
 }
 
 // readAndTransform reads a markdown file and applies runtime transforms.
-func readAndTransform(cacheDir, relPath, version string) string {
-	raw := readMarkdown(cacheDir, relPath)
+func readAndTransform(afs fsext.Fs, cacheDir, relPath, version string) string {
+	raw := readMarkdown(afs, cacheDir, relPath)
 	if raw == "" {
 		return ""
 	}

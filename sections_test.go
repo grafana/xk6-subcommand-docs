@@ -1,9 +1,9 @@
 package docs
 
 import (
-	"os"
-	"path/filepath"
 	"testing"
+
+	"go.k6.io/k6/lib/fsext"
 )
 
 func TestLoadIndex(t *testing.T) {
@@ -12,7 +12,7 @@ func TestLoadIndex(t *testing.T) {
 	t.Run("valid fixture", func(t *testing.T) {
 		t.Parallel()
 
-		idx, err := LoadIndex("testdata")
+		idx, err := LoadIndex(fsext.NewOsFs(), "testdata")
 		if err != nil {
 			t.Fatalf("LoadIndex: unexpected error: %v", err)
 		}
@@ -27,7 +27,7 @@ func TestLoadIndex(t *testing.T) {
 	t.Run("missing file", func(t *testing.T) {
 		t.Parallel()
 
-		_, err := LoadIndex("/tmp/nonexistent-dir-xk6-test")
+		_, err := LoadIndex(fsext.NewMemMapFs(), "/tmp/nonexistent-dir-xk6-test")
 		if err == nil {
 			t.Fatal("LoadIndex: expected error for missing directory, got nil")
 		}
@@ -36,11 +36,15 @@ func TestLoadIndex(t *testing.T) {
 	t.Run("invalid json", func(t *testing.T) {
 		t.Parallel()
 
-		dir := t.TempDir()
-		if err := os.WriteFile(filepath.Join(dir, "sections.json"), []byte("{bad json"), 0o644); err != nil {
+		afs := fsext.NewMemMapFs()
+		dir := "/tmp/invalid-json-test"
+		if err := afs.MkdirAll(dir, 0o755); err != nil {
 			t.Fatal(err)
 		}
-		_, err := LoadIndex(dir)
+		if err := fsext.WriteFile(afs, dir+"/sections.json", []byte("{bad json"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		_, err := LoadIndex(afs, dir)
 		if err == nil {
 			t.Fatal("LoadIndex: expected error for invalid JSON, got nil")
 		}
@@ -304,7 +308,7 @@ func TestChildrenWithMissingChildSlug(t *testing.T) {
 // mustLoadIndex is a test helper that loads the fixture or fails the test.
 func mustLoadIndex(t *testing.T) *Index {
 	t.Helper()
-	idx, err := LoadIndex("testdata")
+	idx, err := LoadIndex(fsext.NewOsFs(), "testdata")
 	if err != nil {
 		t.Fatalf("mustLoadIndex: %v", err)
 	}

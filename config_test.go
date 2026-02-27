@@ -2,26 +2,33 @@ package docs
 
 import (
 	"bytes"
-	"os"
+	"context"
+	"io"
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"go.k6.io/k6/lib/fsext"
 )
 
 func TestLoadConfig(t *testing.T) {
+	t.Parallel()
+
 	t.Run("valid config", func(t *testing.T) {
-		dir := t.TempDir()
+		t.Parallel()
+		afs := fsext.NewMemMapFs()
+		dir := "/tmp/config"
+		env := map[string]string{"XDG_CONFIG_HOME": dir}
+
 		k6Dir := filepath.Join(dir, "k6")
-		if err := os.MkdirAll(k6Dir, 0o755); err != nil {
+		if err := afs.MkdirAll(k6Dir, 0o755); err != nil {
 			t.Fatal(err)
 		}
-		if err := os.WriteFile(filepath.Join(k6Dir, "docs.yaml"), []byte("renderer: glow -p 200\n"), 0o644); err != nil {
+		if err := fsext.WriteFile(afs, filepath.Join(k6Dir, "docs.yaml"), []byte("renderer: glow -p 200\n"), 0o644); err != nil {
 			t.Fatal(err)
 		}
 
-		t.Setenv("XDG_CONFIG_HOME", dir)
-
-		cfg, err := loadConfig()
+		cfg, err := loadConfig(afs, env)
 		if err != nil {
 			t.Fatalf("loadConfig: unexpected error: %v", err)
 		}
@@ -31,10 +38,12 @@ func TestLoadConfig(t *testing.T) {
 	})
 
 	t.Run("missing file returns empty config", func(t *testing.T) {
-		dir := t.TempDir()
-		t.Setenv("XDG_CONFIG_HOME", dir)
+		t.Parallel()
+		afs := fsext.NewMemMapFs()
+		dir := "/tmp/config-missing"
+		env := map[string]string{"XDG_CONFIG_HOME": dir}
 
-		cfg, err := loadConfig()
+		cfg, err := loadConfig(afs, env)
 		if err != nil {
 			t.Fatalf("loadConfig: unexpected error: %v", err)
 		}
@@ -44,18 +53,20 @@ func TestLoadConfig(t *testing.T) {
 	})
 
 	t.Run("invalid YAML returns error", func(t *testing.T) {
-		dir := t.TempDir()
+		t.Parallel()
+		afs := fsext.NewMemMapFs()
+		dir := "/tmp/config-invalid"
+		env := map[string]string{"XDG_CONFIG_HOME": dir}
+
 		k6Dir := filepath.Join(dir, "k6")
-		if err := os.MkdirAll(k6Dir, 0o755); err != nil {
+		if err := afs.MkdirAll(k6Dir, 0o755); err != nil {
 			t.Fatal(err)
 		}
-		if err := os.WriteFile(filepath.Join(k6Dir, "docs.yaml"), []byte(":\n  :\n    : [invalid"), 0o644); err != nil {
+		if err := fsext.WriteFile(afs, filepath.Join(k6Dir, "docs.yaml"), []byte(":\n  :\n    : [invalid"), 0o644); err != nil {
 			t.Fatal(err)
 		}
 
-		t.Setenv("XDG_CONFIG_HOME", dir)
-
-		cfg, err := loadConfig()
+		cfg, err := loadConfig(afs, env)
 		if err == nil {
 			t.Fatal("loadConfig: expected error for invalid YAML, got nil")
 		}
@@ -65,18 +76,20 @@ func TestLoadConfig(t *testing.T) {
 	})
 
 	t.Run("empty renderer field", func(t *testing.T) {
-		dir := t.TempDir()
+		t.Parallel()
+		afs := fsext.NewMemMapFs()
+		dir := "/tmp/config-empty"
+		env := map[string]string{"XDG_CONFIG_HOME": dir}
+
 		k6Dir := filepath.Join(dir, "k6")
-		if err := os.MkdirAll(k6Dir, 0o755); err != nil {
+		if err := afs.MkdirAll(k6Dir, 0o755); err != nil {
 			t.Fatal(err)
 		}
-		if err := os.WriteFile(filepath.Join(k6Dir, "docs.yaml"), []byte("renderer: \"\"\n"), 0o644); err != nil {
+		if err := fsext.WriteFile(afs, filepath.Join(k6Dir, "docs.yaml"), []byte("renderer: \"\"\n"), 0o644); err != nil {
 			t.Fatal(err)
 		}
 
-		t.Setenv("XDG_CONFIG_HOME", dir)
-
-		cfg, err := loadConfig()
+		cfg, err := loadConfig(afs, env)
 		if err != nil {
 			t.Fatalf("loadConfig: unexpected error: %v", err)
 		}
@@ -92,7 +105,7 @@ func TestPipeRenderer(t *testing.T) {
 	mustPipe := func(t *testing.T, buf *bytes.Buffer, renderer string) (stdout, fallback string) {
 		t.Helper()
 		var stdoutBuf, fallbackBuf bytes.Buffer
-		if err := pipeRenderer(buf, &stdoutBuf, &fallbackBuf, renderer); err != nil {
+		if err := pipeRenderer(context.Background(), buf, &stdoutBuf, &fallbackBuf, io.Discard, renderer); err != nil {
 			t.Fatalf("pipeRenderer: %v", err)
 		}
 		return stdoutBuf.String(), fallbackBuf.String()
@@ -171,19 +184,22 @@ func TestPipeRenderer(t *testing.T) {
 }
 
 func TestRendererNotUsedWhenNotTTY(t *testing.T) {
-	cacheDir, _ := setupTestCache(t)
+	t.Parallel()
+	afs, cacheDir, _ := setupTestCache(t)
 
-	dir := t.TempDir()
-	k6Dir := filepath.Join(dir, "k6")
-	if err := os.MkdirAll(k6Dir, 0o755); err != nil {
+	gs := newTestGlobalState(t, afs)
+	env := gs.Env
+	env["XDG_CONFIG_HOME"] = "/tmp/renderertest-config"
+
+	k6Dir := filepath.Join(env["XDG_CONFIG_HOME"], "k6")
+	if err := afs.MkdirAll(k6Dir, 0o755); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(k6Dir, "docs.yaml"), []byte("renderer: nonexistent-renderer-xyz\n"), 0o644); err != nil {
+	if err := fsext.WriteFile(afs, filepath.Join(k6Dir, "docs.yaml"), []byte("renderer: nonexistent-renderer-xyz\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	t.Setenv("XDG_CONFIG_HOME", dir)
 
-	cmd := newCmd(nil)
+	cmd := newCmd(gs)
 	var buf bytes.Buffer
 	cmd.SetOut(&buf)
 	cmd.SetErr(&buf)
